@@ -626,7 +626,10 @@ const WEAPONS = {
 // ---------- Upgrades (level-up picks) ----------
 // Cap for multiplicative stat upgrades (all * multipliers). 8.0 = 800%.
 const STAT_CAP = 8.0;
+// Coins snowball fast, so they get their own tight cap of 1.5x (150%).
+const COIN_CAP = 1.5;
 function capMul(v) { return Math.min(STAT_CAP, v); }
+function capCoin(v) { return Math.min(COIN_CAP, v); }
 
 const UPGRADES = [
   { name: '+15% Damage',       desc: 'Hit harder across the board',       rarity: 'common', apply: p => p.dmgMult = capMul(p.dmgMult * 1.15) },
@@ -640,7 +643,7 @@ const UPGRADES = [
   { name: '+1 HP Regen',       desc: 'Regen 1 HP per second',             rarity: 'common', apply: p => p.regen += 1 },
   { name: '+2 HP Regen',       desc: 'Regen 2 HP per second',             rarity: 'rare',   apply: p => p.regen += 2 },
   { name: '+25% XP Gain',      desc: 'Gain more XP from all sources',     rarity: 'rare',   apply: p => p.xpMult = capMul(p.xpMult * 1.25) },
-  { name: 'Lucky Find',        desc: 'Enemies drop 30% more coins',       rarity: 'rare',   apply: p => p.coinMult = capMul(p.coinMult * 1.3) },
+  { name: 'Lucky Find',        desc: 'Enemies drop 15% more coins',       rarity: 'rare',   apply: p => p.coinMult = capCoin(p.coinMult * 1.15) },
   { name: 'Big Heal',          desc: 'Heal 40 HP now',                    rarity: 'common', apply: p => { p.hp = Math.min(p.maxHp, p.hp + 40); } },
 ];
 
@@ -658,7 +661,7 @@ const SHOP_ITEMS = [
   { name: 'Lucky Charm',   desc: '+8% crit chance',    cost: 14, rarity: 'rare',   type: 'stat', apply: p => p.crit = Math.min(1, p.crit + 0.08) },
   { name: 'Plate Mail',    desc: '+2 armor',           cost: 16, rarity: 'rare',   type: 'stat', apply: p => p.armor += 2 },
   { name: 'Vampire Tooth', desc: 'Lifesteal 1 HP/kill',cost: 20, rarity: 'epic',   type: 'stat', apply: p => p.lifesteal += 1 },
-  { name: 'Gold Tongue',   desc: '+40% coin drops',    cost: 12, rarity: 'rare',   type: 'stat', apply: p => p.coinMult = capMul(p.coinMult * 1.4) },
+  { name: 'Gold Tongue',   desc: '+20% coin drops',    cost: 12, rarity: 'rare',   type: 'stat', apply: p => p.coinMult = capCoin(p.coinMult * 1.2) },
   { name: 'Scholar',       desc: '+30% XP gain',       cost: 12, rarity: 'rare',   type: 'stat', apply: p => p.xpMult = capMul(p.xpMult * 1.3) },
   { name: 'Medkit',        desc: 'Heal 50 HP',         cost: 8,  rarity: 'common', type: 'stat', apply: p => { p.hp = Math.min(p.maxHp, p.hp + 50); } },
   { name: 'Regen Amulet',  desc: '+1 HP regen/sec',    cost: 18, rarity: 'rare',   type: 'stat', apply: p => p.regen += 1 },
@@ -745,7 +748,7 @@ const ENEMY_TYPES = {
     shootCd: 1.8, shootRange: 340, projSpeed: 220
   },
   boss: {
-    baseHp: 2500, speed: 50, r: 55, dmg: 30, xp: 50, coin: 100,
+    baseHp: 2500, speed: 50, r: 55, dmg: 30, xp: 50, coin: 40,
     color: '#a02040', face: 'boss', behavior: 'boss',
     shootCd: 0.9, projSpeed: 260
   }
@@ -1817,10 +1820,12 @@ function killEnemy(e) {
   const xpVal = Math.max(1, Math.floor(e.xp * player.xpMult * 0.5));
   pickups.push({ type: 'xp', x: e.x, y: e.y, value: xpVal, life: 30 });
 
-  // Coin drops — halved base value. Walkers/runners skip drop 40% of the time (unless elite).
-  const skipCoin = !e.elite && (e.type === 'walker' || e.type === 'runner') && Math.random() < 0.4;
+  // Coin drops — heavily cut to keep economy tight.
+  // Walkers/runners skip drop 60% of the time (unless elite). Brutes always drop.
+  const skipCoin = !e.elite && (e.type === 'walker' || e.type === 'runner') && Math.random() < 0.6;
   if (!skipCoin) {
-    const coinVal = Math.max(1, Math.floor(e.coin * player.coinMult * 0.5));
+    // Base value multiplied by 0.3x (used to be 0.5x). Keeps small rewards for low-value kills but prevents snowball.
+    const coinVal = Math.max(1, Math.floor(e.coin * player.coinMult * 0.3));
     // Elites drop MORE coin pickups
     const baseCoinCount = e.type === 'boss' ? 20 : (e.type === 'brute' ? 2 : 1);
     const coinCount = e.elite ? baseCoinCount * 2 : baseCoinCount;
@@ -1852,7 +1857,7 @@ function breakCrate(c) {
   const cx = c.x + c.rw/2, cy = c.y + c.rh/2;
   spawnParticles(cx, cy, '#a07040', 14);
   // 60% chance of coin, 40% chance of XP, plus always some small coins
-  const coinN = randi(2, 5);
+  const coinN = randi(1, 3);
   for (let i = 0; i < coinN; i++) {
     const ang = rand(0, TAU); const d = rand(5, 25);
     pickups.push({ type: 'coin', x: cx + Math.cos(ang)*d, y: cy + Math.sin(ang)*d, value: 1, life: 30 });
@@ -1972,11 +1977,11 @@ function openChest(c) {
   const cx = c.x + c.rw/2, cy = c.y + c.rh/2;
   spawnParticles(cx, cy, '#f0d060', 30);
   screenShake = Math.min(10, screenShake + 4);
-  // Big coin burst
-  const coinN = 8 + randi(0, 6);
+  // Smaller coin burst so chests feel meaningful but don't break economy
+  const coinN = 4 + randi(0, 5);
   for (let i = 0; i < coinN; i++) {
     const ang = rand(0, TAU); const d = rand(15, 45);
-    pickups.push({ type: 'coin', x: cx + Math.cos(ang)*d, y: cy + Math.sin(ang)*d, value: 2, life: 60 });
+    pickups.push({ type: 'coin', x: cx + Math.cos(ang)*d, y: cy + Math.sin(ang)*d, value: 1, life: 60 });
   }
   // 40% chance to roll a consumable if we have a free slot; otherwise or 60% of the time, give a stat upgrade
   const hasFreeSlot = player.consumables.some(s => s === null);

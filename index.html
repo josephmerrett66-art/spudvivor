@@ -323,7 +323,7 @@
     <div class="panel" style="max-width:520px">
       <h1>🥔 SPUDVIVOR</h1>
       <h2>A potato's desperate stand</h2>
-      <p style="text-align:center">Survive 20 waves across 25 rooms. Move with <b>WASD</b>. Dash with <b>SPACE</b>. Use consumables with <b>1/2/3</b>. Place structures with <b>P</b>. You auto-fire at the nearest enemy. Clear every enemy to unlock a new room.</p>
+      <p style="text-align:center">Survive endless waves across 25 rooms. Move with <b>WASD</b>. Dash with <b>SPACE</b>. Use consumables with <b>1/2/3</b>. Place structures with <b>P</b>. Toggle music with <b>M</b>. You auto-fire at the nearest enemy. Clear every enemy to unlock a new room.</p>
       <h2 style="margin-top:18px; color:#f4c47a">CHOOSE YOUR RUN</h2>
       <div id="difficulty-picker" style="display:flex; flex-direction:column; gap:8px; margin-top:12px"></div>
       <div id="credits">Hand-drawn canvas graphics. Single HTML file. No dependencies.</div>
@@ -624,25 +624,36 @@ const WEAPONS = {
 };
 
 // ---------- Upgrades (level-up picks) ----------
-// Cap for multiplicative stat upgrades (all * multipliers). 8.0 = 800%.
-const STAT_CAP = 8.0;
+// Cap for multiplicative stat upgrades. 3.5 = 350% max per stat.
+// Keeps late-game builds strong but not god-mode.
+const STAT_CAP = 3.5;
 // Coins snowball fast, so they get their own tight cap of 1.5x (150%).
 const COIN_CAP = 1.5;
 function capMul(v) { return Math.min(STAT_CAP, v); }
 function capCoin(v) { return Math.min(COIN_CAP, v); }
 
+// Diminishing returns for multiplicative upgrades.
+// The further your current multiplier is from 1.0, the less each new boost gives.
+// Formula: effective boost = raw_boost * (1 - (current - 1) / (STAT_CAP - 1))
+// At current=1.0: full boost. At current=STAT_CAP: 0% boost.
+function dimBoost(current, rawBoost) {
+  const progress = Math.max(0, (current - 1) / (STAT_CAP - 1));
+  const factor = 1 - progress;
+  return current * (1 + (rawBoost - 1) * factor);
+}
+
 const UPGRADES = [
-  { name: '+15% Damage',       desc: 'Hit harder across the board',       rarity: 'common', apply: p => p.dmgMult = capMul(p.dmgMult * 1.15) },
-  { name: '+10% Attack Speed', desc: 'All weapons fire faster',           rarity: 'common', apply: p => p.atkSpdMult = capMul(p.atkSpdMult * 1.10) },
-  { name: '+12% Move Speed',   desc: 'Run faster',                        rarity: 'common', apply: p => p.spdMult = capMul(p.spdMult * 1.12) },
+  { name: '+15% Damage',       desc: 'Hit harder across the board',       rarity: 'common', apply: p => p.dmgMult = capMul(dimBoost(p.dmgMult, 1.15)) },
+  { name: '+10% Attack Speed', desc: 'All weapons fire faster',           rarity: 'common', apply: p => p.atkSpdMult = capMul(dimBoost(p.atkSpdMult, 1.10)) },
+  { name: '+12% Move Speed',   desc: 'Run faster',                        rarity: 'common', apply: p => p.spdMult = capMul(dimBoost(p.spdMult, 1.12)) },
   { name: '+20 Max HP',        desc: 'Also heals 20 HP',                  rarity: 'common', apply: p => { p.maxHp += 20; p.hp += 20; } },
   { name: '+30% Pickup Range', desc: 'Vacuum gems and coins',             rarity: 'common', apply: p => p.pickupRange = Math.min(500, p.pickupRange * 1.3) },
   { name: '+5% Crit Chance',   desc: 'Crits deal 2x damage',              rarity: 'rare',   apply: p => p.crit = Math.min(1, p.crit + 0.05) },
   { name: '+1 Armor',          desc: 'Reduces all incoming damage by 1',  rarity: 'rare',   apply: p => p.armor += 1 },
-  { name: '+15% Bullet Speed', desc: 'Bullets travel faster and farther', rarity: 'common', apply: p => p.bulletSpdMult = capMul(p.bulletSpdMult * 1.15) },
+  { name: '+15% Bullet Speed', desc: 'Bullets travel faster and farther', rarity: 'common', apply: p => p.bulletSpdMult = capMul(dimBoost(p.bulletSpdMult, 1.15)) },
   { name: '+0.5 HP Regen',     desc: 'Regen 0.5 HP per second (cap 3)',   rarity: 'rare',   apply: p => p.regen = Math.min(3, p.regen + 0.5) },
   { name: '+1 HP Regen',       desc: 'Regen 1 HP per second (cap 3)',     rarity: 'epic',   apply: p => p.regen = Math.min(3, p.regen + 1) },
-  { name: '+25% XP Gain',      desc: 'Gain more XP from all sources',     rarity: 'rare',   apply: p => p.xpMult = capMul(p.xpMult * 1.25) },
+  { name: '+25% XP Gain',      desc: 'Gain more XP from all sources',     rarity: 'rare',   apply: p => p.xpMult = capMul(dimBoost(p.xpMult, 1.25)) },
   { name: 'Lucky Find',        desc: 'Enemies drop 15% more coins',       rarity: 'rare',   apply: p => p.coinMult = capCoin(p.coinMult * 1.15) },
   { name: 'Big Heal',          desc: 'Heal 40 HP now',                    rarity: 'common', apply: p => { p.hp = Math.min(p.maxHp, p.hp + 40); } },
 ];
@@ -653,16 +664,16 @@ const SHOP_ITEMS = [
   { name: 'SMG',     desc: 'Fast-firing, low damage',   cost: 15, rarity: 'rare',   type: 'weapon', weapon: 'smg' },
   { name: 'Cannon',  desc: 'Slow, heavy, pierces',      cost: 25, rarity: 'epic',   type: 'weapon', weapon: 'cannon' },
   { name: 'Pistol',  desc: 'Another reliable pistol',   cost: 10, rarity: 'common', type: 'weapon', weapon: 'pistol' },
-  { name: 'Sharp Rounds',  desc: '+20% damage',        cost: 10, rarity: 'common', type: 'stat', apply: p => p.dmgMult = capMul(p.dmgMult * 1.20) },
-  { name: 'Fast Hands',    desc: '+15% attack speed',  cost: 10, rarity: 'common', type: 'stat', apply: p => p.atkSpdMult = capMul(p.atkSpdMult * 1.15) },
-  { name: 'Track Shoes',   desc: '+15% move speed',    cost: 8,  rarity: 'common', type: 'stat', apply: p => p.spdMult = capMul(p.spdMult * 1.15) },
+  { name: 'Sharp Rounds',  desc: '+20% damage',        cost: 10, rarity: 'common', type: 'stat', apply: p => p.dmgMult = capMul(dimBoost(p.dmgMult, 1.20)) },
+  { name: 'Fast Hands',    desc: '+15% attack speed',  cost: 10, rarity: 'common', type: 'stat', apply: p => p.atkSpdMult = capMul(dimBoost(p.atkSpdMult, 1.15)) },
+  { name: 'Track Shoes',   desc: '+15% move speed',    cost: 8,  rarity: 'common', type: 'stat', apply: p => p.spdMult = capMul(dimBoost(p.spdMult, 1.15)) },
   { name: 'Iron Skin',     desc: '+25 max HP, heal',   cost: 10, rarity: 'common', type: 'stat', apply: p => { p.maxHp += 25; p.hp = Math.min(p.maxHp, p.hp + 25); } },
   { name: 'Magnet',        desc: '+50% pickup range',  cost: 8,  rarity: 'common', type: 'stat', apply: p => p.pickupRange = Math.min(500, p.pickupRange * 1.5) },
   { name: 'Lucky Charm',   desc: '+8% crit chance',    cost: 14, rarity: 'rare',   type: 'stat', apply: p => p.crit = Math.min(1, p.crit + 0.08) },
   { name: 'Plate Mail',    desc: '+2 armor',           cost: 16, rarity: 'rare',   type: 'stat', apply: p => p.armor += 2 },
   { name: 'Vampire Tooth', desc: 'Lifesteal 1 HP/kill',cost: 20, rarity: 'epic',   type: 'stat', apply: p => p.lifesteal += 1 },
   { name: 'Gold Tongue',   desc: '+20% coin drops',    cost: 12, rarity: 'rare',   type: 'stat', apply: p => p.coinMult = capCoin(p.coinMult * 1.2) },
-  { name: 'Scholar',       desc: '+30% XP gain',       cost: 12, rarity: 'rare',   type: 'stat', apply: p => p.xpMult = capMul(p.xpMult * 1.3) },
+  { name: 'Scholar',       desc: '+30% XP gain',       cost: 12, rarity: 'rare',   type: 'stat', apply: p => p.xpMult = capMul(dimBoost(p.xpMult, 1.3)) },
   { name: 'Medkit',        desc: 'Heal 50 HP',         cost: 8,  rarity: 'common', type: 'stat', apply: p => { p.hp = Math.min(p.maxHp, p.hp + 50); } },
   { name: 'Regen Amulet',  desc: '+0.5 HP regen/sec (cap 3)',    cost: 18, rarity: 'epic',   type: 'stat', apply: p => p.regen = Math.min(3, p.regen + 0.5) },
   // Consumables (can be bought; held for later use with keys 1/2/3)
@@ -697,11 +708,11 @@ const SHOP_ITEMS = [
   // --- Batch C: Utility & economy ---
   { name: 'Haggler',         desc: '-10% shop prices',                 cost: 15, rarity: 'rare',   type: 'stat', apply: p => p.shopDiscount = Math.min(0.4, p.shopDiscount + 0.10) },
   { name: 'Savvy Trader',    desc: '-25% reroll cost',                 cost: 12, rarity: 'rare',   type: 'stat', apply: p => p.rerollDiscount = Math.min(0.6, p.rerollDiscount + 0.25) },
-  { name: 'XP Boost',        desc: '+40% XP gain',                     cost: 14, rarity: 'rare',   type: 'stat', apply: p => p.xpMult = capMul(p.xpMult * 1.4) },
+  { name: 'XP Boost',        desc: '+40% XP gain',                     cost: 14, rarity: 'rare',   type: 'stat', apply: p => p.xpMult = capMul(dimBoost(p.xpMult, 1.4)) },
   { name: 'Wide Pickup',     desc: '+60% pickup range',                cost: 10, rarity: 'common', type: 'stat', apply: p => p.pickupRange = Math.min(500, p.pickupRange * 1.6) },
-  { name: 'Quick Reload',    desc: '+20% attack speed',                cost: 14, rarity: 'rare',   type: 'stat', apply: p => p.atkSpdMult = capMul(p.atkSpdMult * 1.20) },
-  { name: 'Heavy Hitter',    desc: '+30% damage',                      cost: 16, rarity: 'rare',   type: 'stat', apply: p => p.dmgMult = capMul(p.dmgMult * 1.30) },
-  { name: 'Swift Feet',      desc: '+20% move speed',                  cost: 12, rarity: 'rare',   type: 'stat', apply: p => p.spdMult = capMul(p.spdMult * 1.20) },
+  { name: 'Quick Reload',    desc: '+20% attack speed',                cost: 14, rarity: 'rare',   type: 'stat', apply: p => p.atkSpdMult = capMul(dimBoost(p.atkSpdMult, 1.20)) },
+  { name: 'Heavy Hitter',    desc: '+30% damage',                      cost: 16, rarity: 'rare',   type: 'stat', apply: p => p.dmgMult = capMul(dimBoost(p.dmgMult, 1.30)) },
+  { name: 'Swift Feet',      desc: '+20% move speed',                  cost: 12, rarity: 'rare',   type: 'stat', apply: p => p.spdMult = capMul(dimBoost(p.spdMult, 1.20)) },
   { name: 'Assassin',        desc: '+10% crit chance',                 cost: 22, rarity: 'epic',   type: 'stat', apply: p => p.crit = Math.min(1, p.crit + 0.10) },
 ];
 
@@ -828,9 +839,12 @@ function currentDiff() { return DIFFICULTIES[difficulty]; }
 
 function enemyStatScale(w) {
   const d = currentDiff();
+  // Past wave 15, add exponential scaling kicker — amplified by difficulty.
+  // Death Wish gets the steepest late-game curve, Chill the gentlest.
+  const lateBonus = Math.pow(1 + 0.04 * d.dmg, Math.max(0, w - 15));
   return {
-    hpMult: (1 + w * 0.30) * d.hp,
-    dmgMult: (1 + w * 0.14) * d.dmg,
+    hpMult: (1 + w * 0.30) * d.hp * lateBonus,
+    dmgMult: (1 + w * 0.14) * d.dmg * lateBonus,
     speedMult: 1 + w * 0.028
   };
 }
@@ -1181,6 +1195,8 @@ function startGame(diffKey) {
   if (diffKey && DIFFICULTIES[diffKey]) difficulty = diffKey;
   // Attempt fullscreen on mobile (requires user gesture, which startGame tap provides)
   if (IS_MOBILE) tryFullscreen();
+  // Start music on user gesture (browsers require it)
+  if (musicAudio && musicEnabled && musicAudio.paused) playMusic();
   document.getElementById('menu').classList.remove('active');
   player = makePlayer();
   enemies = []; bullets = []; enemyBullets = []; pickups = []; particles = []; floatTexts = [];
@@ -1980,8 +1996,9 @@ function killEnemy(e) {
   // Walkers/runners skip drop 60% of the time (unless elite). Brutes always drop.
   const skipCoin = !e.elite && (e.type === 'walker' || e.type === 'runner') && Math.random() < 0.6;
   if (!skipCoin) {
-    // Base value multiplied by 0.3x (used to be 0.5x). Keeps small rewards for low-value kills but prevents snowball.
-    const coinVal = Math.max(1, Math.floor(e.coin * player.coinMult * 0.3));
+    // Base 0.3x, shrinks further past wave 15 (0.9x per wave beyond, min 0.1x)
+    const lateDrop = Math.max(0.1, Math.pow(0.9, Math.max(0, wave - 15)));
+    const coinVal = Math.max(1, Math.floor(e.coin * player.coinMult * 0.3 * lateDrop));
     // Elites drop MORE coin pickups
     const baseCoinCount = e.type === 'boss' ? 20 : (e.type === 'brute' ? 2 : 1);
     const coinCount = e.elite ? baseCoinCount * 2 : baseCoinCount;
@@ -2314,7 +2331,7 @@ let shopPurchases = 0; // counts purchases this shop visit
 let shopPurchaseCap = 3;
 
 function scaledCost(baseCost) {
-  const raw = baseCost * (1 + wave * 0.11);
+  const raw = baseCost * (1 + wave * 0.18);
   const disc = player ? (1 - player.shopDiscount) : 1;
   return Math.max(1, Math.ceil(raw * disc));
 }
@@ -3381,6 +3398,61 @@ function drawEnemyFace(type, offX = 0, offY = 0) {
   ctx.restore();
 }
 
+// ---------- Music player ----------
+// Put your song files in the same folder as this HTML, then list filenames below.
+// Supports .mp3, .ogg, .wav, .m4a. Songs shuffle and auto-advance when one ends.
+// Music starts/unpauses when you start a run. Toggle with 'M' key.
+const MUSIC_TRACKS = [
+  // Add your track filenames here, e.g.:
+  // 'track1.mp3', 'track2.mp3', 'track3.mp3'
+];
+
+let musicAudio = null;
+let musicIndex = 0;
+let musicEnabled = true;
+let musicVolume = 0.4;
+
+function initMusic() {
+  if (MUSIC_TRACKS.length === 0) return;
+  musicAudio = new Audio();
+  musicAudio.volume = musicVolume;
+  musicAudio.addEventListener('ended', nextTrack);
+  // Shuffle tracks on start
+  shuffle(MUSIC_TRACKS);
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+function playMusic() {
+  if (!musicEnabled || MUSIC_TRACKS.length === 0 || !musicAudio) return;
+  musicAudio.src = MUSIC_TRACKS[musicIndex];
+  musicAudio.play().catch(err => console.log('Music blocked, will retry on user gesture:', err.message));
+}
+
+function nextTrack() {
+  if (MUSIC_TRACKS.length === 0) return;
+  musicIndex = (musicIndex + 1) % MUSIC_TRACKS.length;
+  playMusic();
+}
+
+function toggleMusic() {
+  musicEnabled = !musicEnabled;
+  if (!musicAudio) return;
+  if (musicEnabled) playMusic();
+  else musicAudio.pause();
+  floatTexts.push({ x: player ? player.x : 400, y: player ? player.y - 30 : 300, text: musicEnabled ? '🎵 Music ON' : '🔇 Music OFF', life: 2, color: '#f4c47a', size: 16, vy: -20 });
+}
+
+// 'M' key toggles music
+window.addEventListener('keydown', e => {
+  if (e.key.toLowerCase() === 'm' && !keys['m']) toggleMusic();
+});
+
 // ---------- Go! ----------
 window.startGame = startGame;
 window.restartGame = restartGame;
@@ -3392,6 +3464,7 @@ window.requestFullscreen = requestFullscreen;
 window.enterFullscreenAndContinue = enterFullscreenAndContinue;
 window.skipFullscreen = skipFullscreen;
 renderDifficultyPicker();
+initMusic();
 requestAnimationFrame(loop);
 
 </script>

@@ -293,12 +293,30 @@
     </div>
   </div>
 
-  <div class="overlay active" id="menu">
-    <div class="panel" style="max-width:520px">
-      <div id="fs-btn-wrap" style="text-align:center; margin-bottom:14px">
-        <button class="btn" onclick="requestFullscreen()" style="background:#50a0f0; border-color:#70c0ff">⛶ FULLSCREEN</button>
-        <div style="font-size:10px; opacity:0.6; margin-top:4px">tap first on mobile for better view</div>
+  <div class="overlay active" id="fs-gate">
+    <div class="panel" style="max-width:420px; text-align:center">
+      <h1>🥔 SPUDVIVOR</h1>
+      <p style="margin:18px 0; font-size:14px; opacity:0.9">
+        Tap below to enter fullscreen, then pick your difficulty.
+      </p>
+      <div style="margin:20px 0">
+        <button class="btn primary" onclick="enterFullscreenAndContinue()" style="font-size:18px; padding:14px 28px;">
+          ⛶ FULLSCREEN & CONTINUE
+        </button>
       </div>
+      <div style="margin-top:8px">
+        <button class="btn" onclick="skipFullscreen()" style="opacity:0.7; font-size:13px">
+          Skip (continue without fullscreen)
+        </button>
+      </div>
+      <div style="font-size:10px; opacity:0.5; margin-top:16px">
+        Fullscreen makes the game fit your screen properly on phones.
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="menu">
+    <div class="panel" style="max-width:520px">
       <h1>🥔 SPUDVIVOR</h1>
       <h2>A potato's desperate stand</h2>
       <p style="text-align:center">Survive 20 waves across 25 rooms. Move with <b>WASD</b>. Dash with <b>SPACE</b>. Use consumables with <b>1/2/3</b>. Place structures with <b>P</b>. You auto-fire at the nearest enemy. Clear every enemy to unlock a new room.</p>
@@ -1129,10 +1147,25 @@ function tryFullscreen() {
   const el = document.documentElement;
   const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
   if (req) {
-    try { req.call(el); } catch (e) { /* some browsers reject; user can tap the button */ }
+    try { req.call(el); } catch (e) { /* some browsers reject; continue anyway */ }
   }
 }
 function requestFullscreen() { tryFullscreen(); }
+
+function enterFullscreenAndContinue() {
+  tryFullscreen();
+  // Small delay to let fullscreen resize the viewport before showing the menu
+  setTimeout(() => {
+    document.getElementById('fs-gate').classList.remove('active');
+    document.getElementById('menu').classList.add('active');
+    if (typeof resizeCanvas === 'function') resizeCanvas();
+  }, 150);
+}
+
+function skipFullscreen() {
+  document.getElementById('fs-gate').classList.remove('active');
+  document.getElementById('menu').classList.add('active');
+}
 
 // ---------- Difficulty picker ----------
 function renderDifficultyPicker() {
@@ -3190,6 +3223,8 @@ window.rerollShop = rerollShop;
 window.closeStatsCard = closeStatsCard;
 window.cancelWeaponReplace = cancelWeaponReplace;
 window.requestFullscreen = requestFullscreen;
+window.enterFullscreenAndContinue = enterFullscreenAndContinue;
+window.skipFullscreen = skipFullscreen;
 renderDifficultyPicker();
 requestAnimationFrame(loop);
 

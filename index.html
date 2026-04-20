@@ -119,14 +119,10 @@
   /* ======================================================== */
   /* Hide touch controls by default, only show when body has .mobile class */
   #touch-controls { display: none; }
-  #rotate-prompt { display: none; }
+  #rotate-prompt { display: none !important; }
   body.mobile #touch-controls { display: block; }
   body.mobile #hud { display: none; }
   body.mobile #mobile-hud { display: flex; }
-  body.mobile.portrait #rotate-prompt { display: flex; }
-  body.mobile.portrait #touch-controls,
-  body.mobile.portrait #mobile-hud,
-  body.mobile.portrait #game { visibility: hidden; }
 
   /* Mobile HUD — slim top strip */
   #mobile-hud {
@@ -146,48 +142,48 @@
 
   /* Touch control layer — positioned over canvas */
   #touch-controls {
-    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     pointer-events: none;
     z-index: 4;
   }
   #joystick-zone {
-    position: absolute; left: 20px; bottom: 20px;
-    width: 140px; height: 140px;
+    position: absolute; left: 12px; bottom: 12px;
+    width: 110px; height: 110px;
     pointer-events: auto;
     touch-action: none;
     -webkit-user-select: none; user-select: none;
   }
   #joystick-base {
     position: absolute; left: 0; top: 0;
-    width: 140px; height: 140px;
+    width: 110px; height: 110px;
     border: 3px solid rgba(139, 90, 60, 0.6);
     border-radius: 50%;
-    background: rgba(20, 10, 16, 0.4);
+    background: rgba(20, 10, 16, 0.5);
   }
   #joystick-thumb {
-    position: absolute; left: 50px; top: 50px;
-    width: 40px; height: 40px;
+    position: absolute; left: 37px; top: 37px;
+    width: 36px; height: 36px;
     border-radius: 50%;
-    background: rgba(244, 196, 122, 0.7);
+    background: rgba(244, 196, 122, 0.75);
     border: 2px solid #f4c47a;
     pointer-events: none;
     transition: background 0.1s;
   }
   #action-buttons {
-    position: absolute; right: 10px; bottom: 10px;
+    position: absolute; right: 8px; bottom: 8px;
     display: grid;
-    grid-template-columns: 58px 58px 58px;
-    gap: 6px;
+    grid-template-columns: 48px 48px 48px;
+    gap: 5px;
     pointer-events: auto;
   }
   .action-btn {
-    width: 58px; height: 58px;
+    width: 48px; height: 48px;
     background: rgba(42, 26, 34, 0.85);
     border: 2px solid #8b5a3c;
     border-radius: 8px;
     color: #f4c47a;
     font-family: inherit;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: bold;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     -webkit-user-select: none; user-select: none;
@@ -197,9 +193,17 @@
   }
   .action-btn:active { background: rgba(80, 50, 60, 0.9); transform: scale(0.95); }
   .action-btn.disabled { opacity: 0.35; }
-  .action-btn .icon { font-size: 22px; }
-  .action-btn .label { font-size: 9px; opacity: 0.7; margin-top: 1px; }
-  .action-btn .count { position: absolute; top: 2px; right: 4px; font-size: 10px; color: #ff8040; }
+  .action-btn .icon { font-size: 18px; }
+  .action-btn .label { font-size: 8px; opacity: 0.7; margin-top: 1px; }
+  .action-btn .count { position: absolute; top: 2px; right: 4px; font-size: 9px; color: #ff8040; }
+
+  /* Portrait orientation: stack joystick center-left, buttons center-right of bottom */
+  @media (orientation: portrait) {
+    #joystick-zone { left: 10px; bottom: 10px; }
+    #action-buttons { right: 6px; bottom: 6px; grid-template-columns: 44px 44px 44px; }
+    .action-btn { width: 44px; height: 44px; }
+    .action-btn .icon { font-size: 17px; }
+  }
 
   /* Rotate prompt */
   #rotate-prompt {
@@ -443,13 +447,13 @@ if (IS_MOBILE) document.body.classList.add('mobile');
 
 function resizeCanvas() {
   if (IS_MOBILE) {
-    // Mobile: canvas fills full viewport (scaled down), with controls on top
-    const scale = Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H);
+    // Reserve ~5% margin so controls can overlay near edges without blocking gameplay core
+    const avW = window.innerWidth * 0.98;
+    const avH = window.innerHeight * 0.98;
+    const scale = Math.min(avW / VIEW_W, avH / VIEW_H);
     canvas.style.width = (VIEW_W * scale) + 'px';
     canvas.style.height = (VIEW_H * scale) + 'px';
-    // Check orientation
-    const isPortrait = window.innerHeight > window.innerWidth;
-    document.body.classList.toggle('portrait', isPortrait);
+    // No portrait class toggling — both orientations supported
   } else {
     const scale = Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H, 1);
     canvas.style.width = (VIEW_W * scale) + 'px';
@@ -493,7 +497,7 @@ if (IS_MOBILE) {
   const zone = document.getElementById('joystick-zone');
   const thumb = document.getElementById('joystick-thumb');
   const base = document.getElementById('joystick-base');
-  const RADIUS = 50; // max thumb travel
+  const RADIUS = 37; // max thumb travel (half of base minus half of thumb)
 
   let touchId = null;
   let baseRect = null;
@@ -504,8 +508,8 @@ if (IS_MOBILE) {
     const angle = Math.atan2(dyPx, dxPx);
     const x = Math.cos(angle) * clamped;
     const y = Math.sin(angle) * clamped;
-    thumb.style.left = (50 + x) + 'px';
-    thumb.style.top = (50 + y) + 'px';
+    thumb.style.left = (37 + x) + 'px';
+    thumb.style.top = (37 + y) + 'px';
     // Normalize to [-1, 1] for movement input — dead zone of 15% so small wiggles don't move
     if (dist < RADIUS * 0.15) { touchDx = 0; touchDy = 0; }
     else {
@@ -515,8 +519,8 @@ if (IS_MOBILE) {
   }
 
   function resetThumb() {
-    thumb.style.left = '50px';
-    thumb.style.top = '50px';
+    thumb.style.left = '37px';
+    thumb.style.top = '37px';
     touchDx = 0; touchDy = 0;
     joystickActive = false;
   }

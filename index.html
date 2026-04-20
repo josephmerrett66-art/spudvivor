@@ -510,11 +510,13 @@ if (IS_MOBILE) {
     const y = Math.sin(angle) * clamped;
     thumb.style.left = (37 + x) + 'px';
     thumb.style.top = (37 + y) + 'px';
-    // Normalize to [-1, 1] for movement input — dead zone of 15% so small wiggles don't move
-    if (dist < RADIUS * 0.15) { touchDx = 0; touchDy = 0; }
+    // Very small dead zone (3%) so even tiny touches register
+    if (dist < RADIUS * 0.03) { touchDx = 0; touchDy = 0; }
     else {
-      touchDx = Math.cos(angle) * (clamped / RADIUS);
-      touchDy = Math.sin(angle) * (clamped / RADIUS);
+      // Always full speed — any touch outside the dead zone gives max movement in that direction.
+      // The direction is based on the angle the thumb is pulled, not the distance.
+      touchDx = Math.cos(angle);
+      touchDy = Math.sin(angle);
     }
   }
 

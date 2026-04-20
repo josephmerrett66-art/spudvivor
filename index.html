@@ -295,9 +295,9 @@
 
   <div class="overlay active" id="menu">
     <div class="panel" style="max-width:520px">
-      <div id="fs-btn-wrap" style="text-align:center; margin-bottom:14px; display:none">
+      <div id="fs-btn-wrap" style="text-align:center; margin-bottom:14px">
         <button class="btn" onclick="requestFullscreen()" style="background:#50a0f0; border-color:#70c0ff">⛶ FULLSCREEN</button>
-        <div style="font-size:10px; opacity:0.6; margin-top:4px">tap first for better mobile view</div>
+        <div style="font-size:10px; opacity:0.6; margin-top:4px">tap first on mobile for better view</div>
       </div>
       <h1>🥔 SPUDVIVOR</h1>
       <h2>A potato's desperate stand</h2>
@@ -1152,9 +1152,6 @@ function renderDifficultyPicker() {
     btn.onclick = () => startGame(key);
     container.appendChild(btn);
   }
-  // Show fullscreen button on mobile only
-  const fsWrap = document.getElementById('fs-btn-wrap');
-  if (fsWrap) fsWrap.style.display = IS_MOBILE ? 'block' : 'none';
 }
 
 function restartGame() {

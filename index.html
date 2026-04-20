@@ -242,7 +242,7 @@
   <div id="mobile-hud">
     <div class="m-box">HP <b id="m-hp-text">100</b></div>
     <div class="m-hp-bar"><div class="m-hp-fill" id="m-hp-fill" style="width:100%"></div></div>
-    <div class="m-box">W<b id="m-wave-text">1</b>/20</div>
+    <div class="m-box">W<b id="m-wave-text">1</b></div>
     <div class="m-box">👹<b id="m-enemy-text">0</b></div>
     <div class="m-box">💰<b id="m-coins-text">0</b></div>
   </div>
@@ -275,7 +275,7 @@
       <div class="bar"><div class="bar-fill xp-fill" id="xp-bar" style="width:0%"></div></div>
     </div>
     <div class="hud-box" style="text-align:center">
-      <div>WAVE <b id="wave-text">1</b> / 20</div>
+      <div>WAVE <b id="wave-text">1</b></div>
       <div style="font-size:22px; margin-top:2px">👹 <b id="enemy-count">0</b></div>
       <div style="margin-top:4px; font-size:11px">Room <b id="room-text">3,3</b></div>
       <div style="margin-top:2px; font-size:10px; opacity:0.6; display:none" id="timer-text">0</div>
@@ -640,8 +640,8 @@ const UPGRADES = [
   { name: '+5% Crit Chance',   desc: 'Crits deal 2x damage',              rarity: 'rare',   apply: p => p.crit = Math.min(1, p.crit + 0.05) },
   { name: '+1 Armor',          desc: 'Reduces all incoming damage by 1',  rarity: 'rare',   apply: p => p.armor += 1 },
   { name: '+15% Bullet Speed', desc: 'Bullets travel faster and farther', rarity: 'common', apply: p => p.bulletSpdMult = capMul(p.bulletSpdMult * 1.15) },
-  { name: '+1 HP Regen',       desc: 'Regen 1 HP per second',             rarity: 'common', apply: p => p.regen += 1 },
-  { name: '+2 HP Regen',       desc: 'Regen 2 HP per second',             rarity: 'rare',   apply: p => p.regen += 2 },
+  { name: '+0.5 HP Regen',     desc: 'Regen 0.5 HP per second (cap 3)',   rarity: 'rare',   apply: p => p.regen = Math.min(3, p.regen + 0.5) },
+  { name: '+1 HP Regen',       desc: 'Regen 1 HP per second (cap 3)',     rarity: 'epic',   apply: p => p.regen = Math.min(3, p.regen + 1) },
   { name: '+25% XP Gain',      desc: 'Gain more XP from all sources',     rarity: 'rare',   apply: p => p.xpMult = capMul(p.xpMult * 1.25) },
   { name: 'Lucky Find',        desc: 'Enemies drop 15% more coins',       rarity: 'rare',   apply: p => p.coinMult = capCoin(p.coinMult * 1.15) },
   { name: 'Big Heal',          desc: 'Heal 40 HP now',                    rarity: 'common', apply: p => { p.hp = Math.min(p.maxHp, p.hp + 40); } },
@@ -664,7 +664,7 @@ const SHOP_ITEMS = [
   { name: 'Gold Tongue',   desc: '+20% coin drops',    cost: 12, rarity: 'rare',   type: 'stat', apply: p => p.coinMult = capCoin(p.coinMult * 1.2) },
   { name: 'Scholar',       desc: '+30% XP gain',       cost: 12, rarity: 'rare',   type: 'stat', apply: p => p.xpMult = capMul(p.xpMult * 1.3) },
   { name: 'Medkit',        desc: 'Heal 50 HP',         cost: 8,  rarity: 'common', type: 'stat', apply: p => { p.hp = Math.min(p.maxHp, p.hp + 50); } },
-  { name: 'Regen Amulet',  desc: '+1 HP regen/sec',    cost: 18, rarity: 'rare',   type: 'stat', apply: p => p.regen += 1 },
+  { name: 'Regen Amulet',  desc: '+0.5 HP regen/sec (cap 3)',    cost: 18, rarity: 'epic',   type: 'stat', apply: p => p.regen = Math.min(3, p.regen + 0.5) },
   // Consumables (can be bought; held for later use with keys 1/2/3)
   { name: 'Grenade',       desc: 'Throws an AoE bomb (key 1/2/3)', cost: 10, rarity: 'common', type: 'consumable', consumable: 'grenade' },
   { name: 'Health Potion', desc: 'Instant 40 HP heal (key 1/2/3)', cost: 8,  rarity: 'common', type: 'consumable', consumable: 'potion' },
@@ -675,6 +675,34 @@ const SHOP_ITEMS = [
   { name: 'Ally: Brawler', desc: 'Tanky melee pet (takes weapon slot)',  cost: 22, rarity: 'rare', type: 'ally', ally: 'brawler' },
   { name: 'Healing Tree',  desc: 'Place in room (press P), heals nearby', cost: 16, rarity: 'rare', type: 'structure', structure: 'tree' },
   { name: 'Turret',        desc: 'Place in room (press P), auto-fires',   cost: 18, rarity: 'rare', type: 'structure', structure: 'turret' },
+
+  // --- Batch A: Combat & weapons ---
+  { name: 'Piercing Rounds', desc: 'Bullets pierce +1 enemy',          cost: 18, rarity: 'rare',   type: 'stat', apply: p => p.bulletPierce += 1 },
+  { name: 'Ricochet',        desc: 'Bullets bounce off walls (+1)',    cost: 20, rarity: 'epic',   type: 'stat', apply: p => p.bulletBounce += 1 },
+  { name: 'Explosive Rounds',desc: 'Bullets explode on hit (small AoE)',cost:24, rarity: 'epic',   type: 'stat', apply: p => p.explosiveRounds += 1 },
+  { name: 'Extra Dash',      desc: '+1 dash charge (stores up)',       cost: 22, rarity: 'epic',   type: 'stat', apply: p => { p.dashCharges += 1; p.dashChargesAvail = p.dashCharges; } },
+  { name: 'Multishot',       desc: '+1 extra pellet per shot',         cost: 20, rarity: 'epic',   type: 'stat', apply: p => p.multishot += 1 },
+  { name: 'Sharpshooter',    desc: '+25% crit damage',                 cost: 12, rarity: 'rare',   type: 'stat', apply: p => p.critDmg = Math.min(5, p.critDmg + 0.25) },
+  { name: 'Knockback',       desc: 'Bullets push enemies back',        cost: 10, rarity: 'common', type: 'stat', apply: p => p.knockback += 30 },
+
+  // --- Batch B: Defense & survival ---
+  { name: 'Thorns',          desc: 'Reflect 5 dmg to attackers',       cost: 14, rarity: 'rare',   type: 'stat', apply: p => p.thorns += 5 },
+  { name: '+40 Max HP',      desc: 'Bulk up; also heals 40',           cost: 12, rarity: 'common', type: 'stat', apply: p => { p.maxHp += 40; p.hp = Math.min(p.maxHp, p.hp + 40); } },
+  { name: 'Heavy Armor',     desc: '+3 armor',                         cost: 18, rarity: 'rare',   type: 'stat', apply: p => p.armor += 3 },
+  { name: 'Evasion',         desc: '+8% chance to dodge damage',       cost: 18, rarity: 'rare',   type: 'stat', apply: p => p.dodgeChance = Math.min(0.6, p.dodgeChance + 0.08) },
+  { name: 'Frost Bullets',   desc: 'Hits slow enemies for 0.5s',       cost: 14, rarity: 'rare',   type: 'stat', apply: p => p.slowOnHit = Math.min(2.0, p.slowOnHit + 0.5) },
+  { name: 'Second Chance',   desc: 'Revive once at 50% HP on death',   cost: 40, rarity: 'epic',   type: 'stat', apply: p => { p.secondChance = true; p.secondChanceUsed = false; } },
+  { name: 'Energy Shield',   desc: '+30 shield (recharges out of combat)', cost: 22, rarity: 'epic', type: 'stat', apply: p => { p.shieldMax += 30; p.shield = p.shieldMax; } },
+
+  // --- Batch C: Utility & economy ---
+  { name: 'Haggler',         desc: '-10% shop prices',                 cost: 15, rarity: 'rare',   type: 'stat', apply: p => p.shopDiscount = Math.min(0.4, p.shopDiscount + 0.10) },
+  { name: 'Savvy Trader',    desc: '-25% reroll cost',                 cost: 12, rarity: 'rare',   type: 'stat', apply: p => p.rerollDiscount = Math.min(0.6, p.rerollDiscount + 0.25) },
+  { name: 'XP Boost',        desc: '+40% XP gain',                     cost: 14, rarity: 'rare',   type: 'stat', apply: p => p.xpMult = capMul(p.xpMult * 1.4) },
+  { name: 'Wide Pickup',     desc: '+60% pickup range',                cost: 10, rarity: 'common', type: 'stat', apply: p => p.pickupRange = Math.min(500, p.pickupRange * 1.6) },
+  { name: 'Quick Reload',    desc: '+20% attack speed',                cost: 14, rarity: 'rare',   type: 'stat', apply: p => p.atkSpdMult = capMul(p.atkSpdMult * 1.20) },
+  { name: 'Heavy Hitter',    desc: '+30% damage',                      cost: 16, rarity: 'rare',   type: 'stat', apply: p => p.dmgMult = capMul(p.dmgMult * 1.30) },
+  { name: 'Swift Feet',      desc: '+20% move speed',                  cost: 12, rarity: 'rare',   type: 'stat', apply: p => p.spdMult = capMul(p.spdMult * 1.20) },
+  { name: 'Assassin',        desc: '+10% crit chance',                 cost: 22, rarity: 'epic',   type: 'stat', apply: p => p.crit = Math.min(1, p.crit + 0.10) },
 ];
 
 // ---------- Companion definitions ----------
@@ -706,6 +734,7 @@ function makePlayer() {
     baseSpeed: 200,
     spdMult: 1, dmgMult: 1, atkSpdMult: 1, bulletSpdMult: 1,
     crit: 0.02, armor: 0, regen: 0, lifesteal: 0,
+    critDmg: 2.0, // crit multiplier, upgradeable
     pickupRange: 70,
     xp: 0, xpToNext: 10, level: 1,
     xpMult: 1, coinMult: 1,
@@ -717,14 +746,29 @@ function makePlayer() {
     regenAccum: 0,
     spikeDamageAccum: 0,
     // Dash state
-    dashCd: 0,        // time until ready
-    dashMax: 2.0,     // cooldown length
-    dashTime: 0,      // how much dash time remaining (while >0 we're still dashing)
-    lastDirX: 0, lastDirY: -1, // last non-zero move direction (default: facing up)
+    dashCd: 0, dashMax: 2.0, dashTime: 0,
+    dashCharges: 1,       // number of dash charges you can store
+    dashChargesAvail: 1,  // currently available
+    lastDirX: 0, lastDirY: -1,
     // Consumables — 3 slots, each null or { type, name, emoji }
     consumables: [null, null, null],
-    // Carried structures waiting to be placed with P key
     carriedStructures: [],
+    // New mechanic stats
+    bulletPierce: 0,        // extra piercing bullets can do
+    bulletBounce: 0,        // number of times bullets bounce off walls
+    explosiveRounds: 0,     // 0 = off, 1+ = small AoE on bullet hit
+    multishot: 0,           // extra pellets fired per shot
+    knockback: 0,           // pixels of push per hit
+    thorns: 0,              // damage reflected when hit
+    dodgeChance: 0,         // 0-1 chance to avoid damage
+    slowOnHit: 0,           // seconds of slow applied to enemies on hit
+    secondChance: false,    // one-time full heal on death
+    secondChanceUsed: false,
+    shield: 0,              // current shield HP
+    shieldMax: 0,           // max shield HP (>0 enables shield system)
+    shieldRegenTimer: 0,
+    shopDiscount: 0,        // 0-1 percent off
+    rerollDiscount: 0,      // 0-1 percent off reroll cost
   };
 }
 
@@ -757,7 +801,8 @@ const ENEMY_TYPES = {
 // ---------- Wave composition ----------
 function waveComposition(w) {
   // Per-room baseline — gets multiplied by room count with a sqrt dampener.
-  if (w === 20) return { types: { boss: 1, brute: 2, runner: 4, shooter: 2, walker: 4 } };
+  // Boss appears every 10 waves starting at wave 20.
+  const bossWave = (w >= 20 && w % 10 === 0);
   const comp = {};
   const base = 4 + Math.floor(w * 0.8 + w * w * 0.02);
   comp.walker = Math.max(0, Math.floor(base * 0.55));
@@ -766,6 +811,7 @@ function waveComposition(w) {
   if (w >= 6) comp.shooter = Math.max(1, Math.floor(w * 0.15));
   if (w >= 10) { comp.walker = Math.floor(comp.walker * 1.2); comp.runner = Math.floor(comp.runner * 1.2); }
   if (w >= 15) { comp.brute = Math.floor(comp.brute * 1.3); comp.runner = Math.floor(comp.runner * 1.25); }
+  if (bossWave) comp.boss = 1;
   return { types: comp };
 }
 
@@ -1353,12 +1399,20 @@ function update(dt) {
   }
 
   // Dash trigger — spacebar OR mobile dash button
+  // Charges system: dashCharges = total capacity, dashChargesAvail = currently available.
+  // Each charge regenerates every dashMax seconds.
   player.dashCd = Math.max(0, player.dashCd - dt);
   player.dashTime = Math.max(0, player.dashTime - dt);
+  // Refill one charge when cooldown expires
+  if (player.dashCd <= 0 && player.dashChargesAvail < player.dashCharges) {
+    player.dashChargesAvail++;
+    if (player.dashChargesAvail < player.dashCharges) player.dashCd = player.dashMax;
+  }
   const dashInput = keys[' '] || touchDashPressed;
-  if (dashInput && player.dashCd <= 0 && player.dashTime <= 0) {
+  if (dashInput && player.dashChargesAvail > 0 && player.dashTime <= 0) {
     player.dashTime = 0.18;
-    player.dashCd = player.dashMax;
+    player.dashChargesAvail--;
+    if (player.dashCd <= 0) player.dashCd = player.dashMax; // start regen timer if not running
     player.iframe = Math.max(player.iframe, 0.25);
     spawnParticles(player.x, player.y, '#70c0ff', 12);
   }
@@ -1373,18 +1427,22 @@ function update(dt) {
     if (!dx && !dy) { moveDx = player.lastDirX; moveDy = player.lastDirY; }
   }
 
-  // Move in X and Y separately for smoother wall sliding
-  let nx = player.x + moveDx * spd * dt;
-  let ny = player.y + moveDy * spd * dt;
-  // Initial clamp to world bounds (also enforced again after collision resolution below)
-  nx = clamp(nx, player.r, WORLD_W - player.r);
-  ny = clamp(ny, player.r, WORLD_H - player.r);
-
-  // Resolve collisions
-  const after = collideCircleWithObstacles(nx, ny, player.r);
-  // Final clamp — collision resolution can push us past the edge, this prevents escape.
-  player.x = clamp(after.x, player.r, WORLD_W - player.r);
-  player.y = clamp(after.y, player.r, WORLD_H - player.r);
+  // Move in X and Y separately for smoother wall sliding.
+  // Sub-step movement to prevent tunneling through thin walls at high speeds (especially dash).
+  // Step size is 10px — smaller than any wall/door thickness (thinnest is 12px corridor stubs, 18px doors).
+  const totalDist = spd * dt;
+  const maxStep = 10;
+  const steps = Math.max(1, Math.ceil(totalDist / maxStep));
+  const stepDt = dt / steps;
+  for (let s = 0; s < steps; s++) {
+    let nx = player.x + moveDx * spd * stepDt;
+    let ny = player.y + moveDy * spd * stepDt;
+    nx = clamp(nx, player.r, WORLD_W - player.r);
+    ny = clamp(ny, player.r, WORLD_H - player.r);
+    const after = collideCircleWithObstacles(nx, ny, player.r);
+    player.x = clamp(after.x, player.r, WORLD_W - player.r);
+    player.y = clamp(after.y, player.r, WORLD_H - player.r);
+  }
 
   // Detect room transition
   const newRoom = roomOf(player.x, player.y);
@@ -1401,6 +1459,15 @@ function update(dt) {
     while (player.regenAccum >= 1) {
       player.hp = Math.min(player.maxHp, player.hp + 1);
       player.regenAccum -= 1;
+    }
+  }
+
+  // Shield regen — recharges 4 HP/s after 4 seconds without being hit
+  if (player.shieldMax > 0) {
+    if (player.shieldRegenTimer > 0) {
+      player.shieldRegenTimer -= dt;
+    } else if (player.shield < player.shieldMax) {
+      player.shield = Math.min(player.shieldMax, player.shield + 4 * dt);
     }
   }
 
@@ -1487,6 +1554,23 @@ function update(dt) {
         hitObs.hp -= b.dmg;
         spawnParticles(b.x, b.y, '#a07040', 4);
         if (hitObs.hp <= 0) breakCrate(hitObs);
+      } else if (b.bounce > 0) {
+        // Ricochet off wall — reflect whichever component points into the wall.
+        // Simple approach: test which reversal clears the collision; prefer the one that does.
+        b.bounce--;
+        const testX = { x: b.x - b.vx * dt * 2, y: b.y, vx: -b.vx, vy: b.vy };
+        const testY = { x: b.x, y: b.y - b.vy * dt * 2, vx: b.vx, vy: -b.vy };
+        if (!bulletHitsObstacle(testX.x, testX.y, b.size)) {
+          b.x = testX.x; b.y = testX.y; b.vx = -b.vx;
+        } else if (!bulletHitsObstacle(testY.x, testY.y, b.size)) {
+          b.x = testY.x; b.y = testY.y; b.vy = -b.vy;
+        } else {
+          // Cornered — reverse both
+          b.vx = -b.vx; b.vy = -b.vy;
+          b.x += b.vx * dt * 2; b.y += b.vy * dt * 2;
+        }
+        spawnParticles(b.x, b.y, b.color, 3);
+        continue;
       } else {
         spawnParticles(b.x, b.y, '#888', 3);
       }
@@ -1503,14 +1587,13 @@ function update(dt) {
           bullets.splice(i, 1); consumed = true; break;
         }
         const isCrit = Math.random() < player.crit;
-        let dmg = b.dmg * (isCrit ? 2 : 1);
+        let dmg = b.dmg * (isCrit ? (player.critDmg || 2) : 1);
         // Shielded elite: incoming damage is halved until shield breaks
         if (e.shieldHp > 0) {
-          const shieldAbsorbed = dmg; // full damage hits shield at half effectiveness to shield pool
+          const shieldAbsorbed = dmg;
           e.shieldHp -= dmg * 0.5;
-          dmg = dmg * 0.5; // and only half as much actual damage to hp
+          dmg = dmg * 0.5;
           if (e.shieldHp <= 0) {
-            // Shield break flash
             spawnParticles(e.x, e.y, '#80c0ff', 14);
             floatTexts.push({ x: e.x, y: e.y - e.r - 8, text: 'SHIELD BREAK', life: 1.2, color: '#80c0ff', size: 13, vy: -25 });
             e.shieldHp = 0;
@@ -1519,6 +1602,31 @@ function update(dt) {
         e.hp -= dmg; e.hitFlash = 0.1; damageDealt += dmg;
         spawnParticles(b.x, b.y, b.color, 4);
         floatTexts.push({ x: e.x, y: e.y - e.r, text: Math.round(dmg), life: 0.6, color: isCrit ? '#ffff40' : '#ffffff', size: isCrit ? 18 : 14, vy: -30 });
+        // Knockback: push enemy in bullet direction
+        if (b.knockback > 0 && e.type !== 'boss') {
+          const ang = Math.atan2(b.vy, b.vx);
+          e.x += Math.cos(ang) * b.knockback * 0.1;
+          e.y += Math.sin(ang) * b.knockback * 0.1;
+        }
+        // Slow on hit: add a slow timer to the enemy
+        if (b.slowOnHit > 0) {
+          e.slowTimer = Math.max(e.slowTimer || 0, b.slowOnHit);
+        }
+        // Explosive rounds: small AoE on impact
+        if (b.explosive > 0) {
+          const aoeR = 60 + b.explosive * 20;
+          const aoeDmg = dmg * 0.4;
+          for (const e2 of enemies) {
+            if (e2 === e) continue;
+            if (dist(b.x, b.y, e2.x, e2.y) < aoeR) {
+              e2.hp -= aoeDmg;
+              e2.hitFlash = 0.1;
+              damageDealt += aoeDmg;
+              if (e2.hp <= 0) killEnemy(e2);
+            }
+          }
+          spawnParticles(b.x, b.y, '#ff8040', 12);
+        }
         if (!b.hit) b.hit = new Set();
         b.hit.add(e);
         if (e.hp <= 0) killEnemy(e);
@@ -1571,7 +1679,11 @@ function update(dt) {
 
     // Move with collision — try full motion, if blocked try axis separately (wall sliding)
     // Freeze effect: enemies move at 40% speed while freezeTimer > 0
-    const speedFactor = freezeTimer > 0 ? 0.4 : 1;
+    // Slow on hit (Frost Bullets): enemy-specific slow that ticks down
+    if (e.slowTimer > 0) e.slowTimer -= dt;
+    let speedFactor = 1;
+    if (freezeTimer > 0) speedFactor *= 0.4;
+    if (e.slowTimer > 0) speedFactor *= 0.5;
     const sx = e.x + tx * e.speed * speedFactor * dt;
     const sy = e.y + ty * e.speed * speedFactor * dt;
     const resolved = collideCircleWithObstacles(sx, sy, e.r);
@@ -1592,7 +1704,7 @@ function update(dt) {
 
     // Collision with player
     if (player.iframe <= 0 && dist(e.x, e.y, player.x, player.y) < e.r + player.r) {
-      damagePlayer(e.dmg);
+      damagePlayer(e.dmg, e);
     }
   }
 
@@ -1783,9 +1895,13 @@ function findNearestEnemy(x, y, maxRange) {
 function fireWeapon(type, target) {
   const def = WEAPONS[type];
   const baseAng = Math.atan2(target.y - player.y, target.x - player.x);
-  for (let i = 0; i < def.pellets; i++) {
-    const spreadOffset = def.pellets > 1
-      ? (i / (def.pellets - 1) - 0.5) * def.spread + rand(-0.05, 0.05)
+  // Multishot adds extra pellets per shot
+  const totalPellets = def.pellets + (player.multishot || 0);
+  // Effective spread scales with extra pellets so the fan stays tight
+  const effSpread = def.spread * (totalPellets > 1 ? 1 : 0);
+  for (let i = 0; i < totalPellets; i++) {
+    const spreadOffset = totalPellets > 1
+      ? (i / (totalPellets - 1) - 0.5) * (effSpread || 0.3) + rand(-0.05, 0.05)
       : rand(-def.spread/2, def.spread/2);
     const ang = baseAng + spreadOffset;
     const spd = def.speed * player.bulletSpdMult;
@@ -1795,13 +1911,33 @@ function fireWeapon(type, target) {
       dmg: def.damage * player.dmgMult,
       size: def.bulletSize, color: def.color,
       life: def.range / spd,
-      pierce: def.pierce, hit: null,
+      pierce: def.pierce + (player.bulletPierce || 0),
+      bounce: (player.bulletBounce || 0),
+      explosive: (player.explosiveRounds || 0),
+      knockback: (player.knockback || 0),
+      slowOnHit: (player.slowOnHit || 0),
+      hit: null,
     });
   }
 }
 
-function damagePlayer(amount) {
-  const actual = Math.max(1, amount - player.armor);
+function damagePlayer(amount, attacker) {
+  // Dodge: skip damage entirely
+  if (player.dodgeChance > 0 && Math.random() < player.dodgeChance) {
+    floatTexts.push({ x: player.x, y: player.y - player.r - 6, text: 'DODGE', life: 0.6, color: '#70e0a0', size: 13, vy: -40 });
+    player.iframe = 0.15;
+    return;
+  }
+  let actual = Math.max(1, amount - player.armor);
+  // Shield absorbs first
+  if (player.shield > 0) {
+    const absorbed = Math.min(player.shield, actual);
+    player.shield -= absorbed;
+    actual -= absorbed;
+    floatTexts.push({ x: player.x, y: player.y - player.r - 6, text: '-' + Math.round(absorbed) + ' SHIELD', life: 0.6, color: '#70c0ff', size: 12, vy: -35 });
+    player.shieldRegenTimer = 4; // delay before shield starts recharging
+    if (actual <= 0) { player.iframe = 0.3; return; }
+  }
   player.hp -= actual;
   player.iframe = 0.4;
   player.hitFlash = 0.2;
@@ -1810,7 +1946,27 @@ function damagePlayer(amount) {
   screenShake = Math.min(12, screenShake + 6);
   floatTexts.push({ x: player.x, y: player.y - player.r - 6, text: '-' + Math.round(actual), life: 0.7, color: '#ff5040', size: 14, vy: -40 });
   spawnParticles(player.x, player.y, '#ff4040', 8);
-  if (player.hp <= 0) { player.hp = 0; gameOver(); }
+  // Thorns: reflect damage to attacker
+  if (player.thorns > 0 && attacker && attacker.hp > 0) {
+    attacker.hp -= player.thorns;
+    attacker.hitFlash = 0.1;
+    floatTexts.push({ x: attacker.x, y: attacker.y - attacker.r, text: '🌵 ' + player.thorns, life: 0.5, color: '#70e080', size: 12, vy: -25 });
+    if (attacker.hp <= 0) killEnemy(attacker);
+  }
+  if (player.hp <= 0) {
+    // Second Chance: revive at 50% HP once
+    if (player.secondChance && !player.secondChanceUsed) {
+      player.secondChanceUsed = true;
+      player.hp = Math.floor(player.maxHp * 0.5);
+      player.iframe = 2.0;
+      floatTexts.push({ x: player.x, y: player.y - 20, text: '✨ SECOND CHANCE!', life: 3.0, color: '#ffe040', size: 20, vy: -15 });
+      spawnParticles(player.x, player.y, '#ffe040', 40);
+      screenShake = 10;
+      return;
+    }
+    player.hp = 0;
+    gameOver();
+  }
 }
 
 function killEnemy(e) {
@@ -2024,8 +2180,8 @@ function endWave() {
     else if (p.type === 'coin') player.coins += p.value;
   }
   pickups.length = 0;
-  if (wave >= 20) return;
-  // Show stats first, then room picker, then shop
+  // Endless: every wave just goes to stats -> picker -> shop -> next wave
+  // Boss at wave 20 is a checkpoint but doesn't end the run
   openStatsCard();
 }
 
@@ -2158,7 +2314,9 @@ let shopPurchases = 0; // counts purchases this shop visit
 let shopPurchaseCap = 3;
 
 function scaledCost(baseCost) {
-  return Math.ceil(baseCost * (1 + wave * 0.11));
+  const raw = baseCost * (1 + wave * 0.11);
+  const disc = player ? (1 - player.shopDiscount) : 1;
+  return Math.max(1, Math.ceil(raw * disc));
 }
 
 // Purchase cap grows with wave: 3 at w1-5, 4 at w6-10, 5 at w11-15, 6 at w16+
@@ -2168,7 +2326,8 @@ function currentPurchaseCap() {
 
 function openShop() {
   state = 'shop';
-  rerollCost = 3 + Math.floor(wave * 0.5);
+  const rerollBase = 3 + Math.floor(wave * 0.5);
+  rerollCost = Math.max(1, Math.ceil(rerollBase * (1 - (player.rerollDiscount || 0))));
   shopPurchases = 0;
   shopPurchaseCap = currentPurchaseCap();
   rollShop();
@@ -2382,16 +2541,12 @@ function gameOver() {
   document.getElementById('gameover').classList.add('active');
 }
 function winGame() {
-  state = 'won';
-  enemies = [];
-  const secs = Math.floor((performance.now() - runStartTime) / 1000);
-  document.getElementById('victory-stats').innerHTML = `
-    <span>Time <b>${secs}s</b></span>
-    <span>Level <b>${player.level}</b></span>
-    <span>Kills <b>${totalKills}</b></span>
-    <span>Damage <b>${Math.round(damageDealt)}</b></span>
-  `;
-  document.getElementById('victory').classList.add('active');
+  // Boss is now a CHECKPOINT, not an ending — give a big coin reward + full heal, but continue
+  player.hp = player.maxHp;
+  player.coins += 100;
+  floatTexts.push({ x: player.x, y: player.y - 40, text: '🏆 CHECKPOINT — HEALED +100💰', life: 4.0, color: '#f4c47a', size: 22, vy: -15 });
+  screenShake = 14;
+  spawnParticles(player.x, player.y, '#f4c47a', 60);
 }
 
 // ---------- HUD ----------

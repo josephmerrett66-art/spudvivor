@@ -36,6 +36,8 @@
     background: rgba(10, 6, 10, 0.85);
     z-index: 10;
     padding: 20px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .overlay.active { display: flex; }
   .panel {
@@ -293,13 +295,15 @@
 
   <div class="overlay active" id="menu">
     <div class="panel" style="max-width:520px">
+      <div id="fs-btn-wrap" style="text-align:center; margin-bottom:14px; display:none">
+        <button class="btn" onclick="requestFullscreen()" style="background:#50a0f0; border-color:#70c0ff">⛶ FULLSCREEN</button>
+        <div style="font-size:10px; opacity:0.6; margin-top:4px">tap first for better mobile view</div>
+      </div>
       <h1>🥔 SPUDVIVOR</h1>
       <h2>A potato's desperate stand</h2>
       <p style="text-align:center">Survive 20 waves across 25 rooms. Move with <b>WASD</b>. Dash with <b>SPACE</b>. Use consumables with <b>1/2/3</b>. Place structures with <b>P</b>. You auto-fire at the nearest enemy. Clear every enemy to unlock a new room.</p>
-      <p style="text-align:center; color:#e08040"><b>Difficulty: Punishing.</b> You will die. A lot. Reaching wave 20 is an achievement.</p>
-      <div style="text-align:center; margin-top:20px">
-        <button class="btn primary" onclick="startGame()">START RUN</button>
-      </div>
+      <h2 style="margin-top:18px; color:#f4c47a">CHOOSE YOUR RUN</h2>
+      <div id="difficulty-picker" style="display:flex; flex-direction:column; gap:8px; margin-top:12px"></div>
       <div id="credits">Hand-drawn canvas graphics. Single HTML file. No dependencies.</div>
     </div>
   </div>
@@ -738,10 +742,22 @@ function waveComposition(w) {
   return { types: comp };
 }
 
+// ---------- Difficulty ----------
+const DIFFICULTIES = {
+  chill:      { name: 'Chill',      desc: 'Forgiving. Learn the ropes.',             count: 0.55, hp: 0.75, dmg: 0.75, eliteBonus: -0.10, color: '#70c0ff' },
+  normal:     { name: 'Normal',     desc: 'Standard survivor challenge.',            count: 0.75, hp: 0.90, dmg: 0.90, eliteBonus:  0.00, color: '#70e080' },
+  punishing:  { name: 'Punishing',  desc: 'You will die. A lot.',                    count: 1.00, hp: 1.00, dmg: 1.00, eliteBonus:  0.00, color: '#e08040' },
+  deathwish:  { name: 'Death Wish', desc: 'Near impossible. Brag if you reach w20.', count: 1.40, hp: 1.50, dmg: 1.40, eliteBonus:  0.10, color: '#ff4060' },
+};
+let difficulty = 'punishing'; // current selection; can be changed on menu
+
+function currentDiff() { return DIFFICULTIES[difficulty]; }
+
 function enemyStatScale(w) {
+  const d = currentDiff();
   return {
-    hpMult: 1 + w * 0.30,
-    dmgMult: 1 + w * 0.14,
+    hpMult: (1 + w * 0.30) * d.hp,
+    dmgMult: (1 + w * 0.14) * d.dmg,
     speedMult: 1 + w * 0.028
   };
 }
@@ -1088,7 +1104,10 @@ function worldToScreen(wx, wy) {
 // ============================================================
 // START / WAVES
 // ============================================================
-function startGame() {
+function startGame(diffKey) {
+  if (diffKey && DIFFICULTIES[diffKey]) difficulty = diffKey;
+  // Attempt fullscreen on mobile (requires user gesture, which startGame tap provides)
+  if (IS_MOBILE) tryFullscreen();
   document.getElementById('menu').classList.remove('active');
   player = makePlayer();
   enemies = []; bullets = []; enemyBullets = []; pickups = []; particles = []; floatTexts = [];
@@ -1105,6 +1124,39 @@ function startGame() {
   startNextWave();
 }
 
+// ---------- Fullscreen helpers ----------
+function tryFullscreen() {
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+  if (req) {
+    try { req.call(el); } catch (e) { /* some browsers reject; user can tap the button */ }
+  }
+}
+function requestFullscreen() { tryFullscreen(); }
+
+// ---------- Difficulty picker ----------
+function renderDifficultyPicker() {
+  const container = document.getElementById('difficulty-picker');
+  if (!container) return;
+  container.innerHTML = '';
+  const order = ['chill', 'normal', 'punishing', 'deathwish'];
+  for (const key of order) {
+    const d = DIFFICULTIES[key];
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.style.cssText = `background:${d.color}; border-color:${d.color}; font-size:15px; padding:10px 14px; text-align:left; display:flex; flex-direction:column; align-items:stretch; color:#1a0e14`;
+    btn.innerHTML = `
+      <div style="font-weight:bold; font-size:16px">${d.name}</div>
+      <div style="font-size:11px; opacity:0.85; font-weight:normal; margin-top:2px">${d.desc}</div>
+    `;
+    btn.onclick = () => startGame(key);
+    container.appendChild(btn);
+  }
+  // Show fullscreen button on mobile only
+  const fsWrap = document.getElementById('fs-btn-wrap');
+  if (fsWrap) fsWrap.style.display = IS_MOBILE ? 'block' : 'none';
+}
+
 function restartGame() {
   document.getElementById('gameover').classList.remove('active');
   document.getElementById('victory').classList.remove('active');
@@ -1119,7 +1171,7 @@ function startNextWave() {
   // Per-room counts from waveComposition(); total = perRoom * sqrt(rooms) * 1.3
   // At 1 room = 1.3x, 4 rooms = 2.6x, 9 = 3.9x, 16 = 5.2x, 25 = 6.5x.
   const rooms = unlockedRooms();
-  const roomScale = Math.sqrt(rooms.length) * 1.3;
+  const roomScale = Math.sqrt(rooms.length) * 1.3 * currentDiff().count;
 
   // Build list of enemies to spawn, applying room scale to each count
   const enemyList = [];
@@ -1191,7 +1243,7 @@ function spawnEnemyAt(type, x, y, gx, gy) {
 
   // Elite roll: wave 3+, 20% chance (excludes bosses)
   let eliteType = null;
-  if (type !== 'boss' && wave >= 3 && Math.random() < 0.2) {
+  if (type !== 'boss' && wave >= 3 && Math.random() < (0.2 + currentDiff().eliteBonus)) {
     eliteType = pick(['shielded', 'fast', 'explosive']);
   }
 
@@ -3140,6 +3192,8 @@ window.startNextWave = startNextWave;
 window.rerollShop = rerollShop;
 window.closeStatsCard = closeStatsCard;
 window.cancelWeaponReplace = cancelWeaponReplace;
+window.requestFullscreen = requestFullscreen;
+renderDifficultyPicker();
 requestAnimationFrame(loop);
 
 </script>

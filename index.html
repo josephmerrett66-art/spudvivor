@@ -220,6 +220,10 @@
     0%, 40% { transform: rotate(0deg); }
     60%, 100% { transform: rotate(-90deg); }
   }
+  @keyframes spudgodpulse {
+    from { box-shadow: 0 0 12px #ff8800; transform: scale(1); }
+    to   { box-shadow: 0 0 28px #ffcc00, 0 0 8px #ff4400; transform: scale(1.02); }
+  }
 
   /* Shrink overlay panels on narrow screens */
   @media (max-width: 700px) {
@@ -828,10 +832,14 @@ function waveComposition(w) {
 
 // ---------- Difficulty ----------
 const DIFFICULTIES = {
-  chill:      { name: 'Chill',      desc: 'Forgiving. Learn the ropes.',             count: 0.55, hp: 0.75, dmg: 0.75, eliteBonus: -0.10, color: '#70c0ff' },
-  normal:     { name: 'Normal',     desc: 'Standard survivor challenge.',            count: 0.75, hp: 0.90, dmg: 0.90, eliteBonus:  0.00, color: '#70e080' },
-  punishing:  { name: 'Punishing',  desc: 'You will die. A lot.',                    count: 1.00, hp: 1.00, dmg: 1.00, eliteBonus:  0.00, color: '#e08040' },
-  deathwish:  { name: 'Death Wish', desc: 'Near impossible. Brag if you reach w20.', count: 1.40, hp: 1.50, dmg: 1.40, eliteBonus:  0.10, color: '#ff4060' },
+  chill:      { name: 'Chill',         desc: 'Forgiving. Learn the ropes.',                    count: 0.55, hp: 0.75, dmg: 0.75, eliteBonus: -0.10, color: '#70c0ff' },
+  normal:     { name: 'Normal',        desc: 'Standard survivor challenge.',                   count: 0.75, hp: 0.90, dmg: 0.90, eliteBonus:  0.00, color: '#70e080' },
+  punishing:  { name: 'Punishing',     desc: 'You will die. A lot.',                           count: 1.00, hp: 1.00, dmg: 1.00, eliteBonus:  0.00, color: '#e08040' },
+  deathwish:  { name: 'Death Wish',    desc: 'Near impossible. Brag if you reach w20.',        count: 1.40, hp: 1.50, dmg: 1.40, eliteBonus:  0.10, color: '#ff4060' },
+  nightmare:  { name: 'Nightmare',     desc: 'Enemies hit harder and flood every room.',       count: 1.80, hp: 2.00, dmg: 1.80, eliteBonus:  0.15, color: '#cc2080' },
+  torment:    { name: 'Torment',       desc: 'Elites everywhere. Coin drops halved.',          count: 2.20, hp: 2.60, dmg: 2.20, eliteBonus:  0.20, color: '#9900cc', coinMult: 0.5 },
+  oblivion:   { name: 'Oblivion',      desc: 'Walls of enemies. One-hit from most attacks.',   count: 2.80, hp: 3.50, dmg: 3.00, eliteBonus:  0.25, color: '#660000', coinMult: 0.4 },
+  spudgod:    { name: 'SPUD GOD',      desc: 'You will not survive. This is not balanced.',    count: 3.50, hp: 5.00, dmg: 4.00, eliteBonus:  0.35, color: '#ff8800', coinMult: 0.3, shopCap: 2 },
 };
 let difficulty = 'punishing'; // current selection; can be changed on menu
 
@@ -1244,14 +1252,14 @@ function renderDifficultyPicker() {
   const container = document.getElementById('difficulty-picker');
   if (!container) return;
   container.innerHTML = '';
-  const order = ['chill', 'normal', 'punishing', 'deathwish'];
+  const order = ['chill', 'normal', 'punishing', 'deathwish', 'nightmare', 'torment', 'oblivion', 'spudgod'];
   for (const key of order) {
     const d = DIFFICULTIES[key];
     const btn = document.createElement('button');
     btn.className = 'btn';
-    btn.style.cssText = `background:${d.color}; border-color:${d.color}; font-size:15px; padding:10px 14px; text-align:left; display:flex; flex-direction:column; align-items:stretch; color:#1a0e14`;
+    btn.style.cssText = `background:${d.color}; border-color:${d.color}; font-size:15px; padding:10px 14px; text-align:left; display:flex; flex-direction:column; align-items:stretch; color:#1a0e14; ${key === 'spudgod' ? 'animation:spudgodpulse 1.2s infinite alternate; box-shadow: 0 0 18px #ff8800;' : ''}`;
     btn.innerHTML = `
-      <div style="font-weight:bold; font-size:16px">${d.name}</div>
+      <div style="font-weight:bold; font-size:${key === 'spudgod' ? '18' : '16'}px">${d.name}</div>
       <div style="font-size:11px; opacity:0.85; font-weight:normal; margin-top:2px">${d.desc}</div>
     `;
     btn.onclick = () => startGame(key);
@@ -1999,7 +2007,8 @@ function killEnemy(e) {
   if (!skipCoin) {
     // Base 0.3x, shrinks further past wave 15 (0.9x per wave beyond, min 0.1x)
     const lateDrop = Math.max(0.1, Math.pow(0.9, Math.max(0, wave - 15)));
-    const coinVal = Math.max(1, Math.floor(e.coin * player.coinMult * 0.3 * lateDrop));
+    const diffCoinMult = currentDiff().coinMult || 1;
+    const coinVal = Math.max(1, Math.floor(e.coin * player.coinMult * 0.3 * lateDrop * diffCoinMult));
     // Elites drop MORE coin pickups
     const baseCoinCount = e.type === 'boss' ? 20 : (e.type === 'brute' ? 2 : 1);
     const coinCount = e.elite ? baseCoinCount * 2 : baseCoinCount;
@@ -2339,6 +2348,8 @@ function scaledCost(baseCost) {
 
 // Purchase cap grows with wave: 3 at w1-5, 4 at w6-10, 5 at w11-15, 6 at w16+
 function currentPurchaseCap() {
+  const diffCap = currentDiff().shopCap;
+  if (diffCap) return diffCap; // difficulty overrides (e.g. Spud God locks to 2)
   return Math.min(6, 3 + Math.floor((wave - 1) / 5));
 }
 

@@ -1861,12 +1861,10 @@ function update(dt) {
 
     } else if (e.behavior === 'stalker') {
       const d = dist(e.x, e.y, player.x, player.y);
-      // Invisible until very close; if revealed, chase hard for 2s then re-stealth
-      e.revealTimer = (e.revealTimer || 0);
-      const isRevealed = d < ENEMY_TYPES.stalker.revealRange || e.igniteDmg > 0;
-      if (isRevealed) { e.revealTimer = 1.5; }
-      else { e.revealTimer = Math.max(0, e.revealTimer - dt); }
-      e.isVisible = e.revealTimer > 0 || e.hitFlash > 0;
+      // Timed cycle: 3s invisible, 5s visible, repeat
+      e.stalkTimer = (e.stalkTimer || 0) + dt;
+      const cyclePos = e.stalkTimer % 8.0; // 3 + 5 = 8s cycle
+      e.isVisible = cyclePos >= 3.0;
       if (d > 0.1) { tx = (player.x - e.x) / d; ty = (player.y - e.y) / d; }
 
     } else if (e.behavior === 'bomber') {
@@ -3796,16 +3794,18 @@ function drawEnemy(e) {
     }
 
   } else if (e.type === 'stalker') {
-    // Only visible when revealed
-    const visAlpha = e.isVisible ? 1 : 0.08;
+    // 3s invisible, 5s visible. Flicker in final 0.5s before vanishing as a warning.
+    const cyclePos = (e.stalkTimer || 0) % 8.0;
+    const aboutToVanish = e.isVisible && cyclePos >= 7.5; // last 0.5s of visible phase
+    const flicker = aboutToVanish && Math.floor(Date.now() / 80) % 2 === 0;
+    const visAlpha = e.isVisible ? (flicker ? 0.2 : 1) : 0.08;
     ctx.globalAlpha = visAlpha;
     ctx.fillStyle = baseColor;
     ctx.strokeStyle = '#100020'; ctx.lineWidth = 2;
-    // Sleek, thin shape
     ctx.beginPath();
     ctx.ellipse(0, 0, e.r * 0.6, e.r, 0, 0, TAU);
     ctx.fill(); ctx.stroke();
-    if (e.isVisible) {
+    if (e.isVisible && !flicker) {
       ctx.fillStyle = '#cc80ff';
       ctx.beginPath(); ctx.arc(-4, -3, 3, 0, TAU); ctx.fill();
       ctx.beginPath(); ctx.arc(4, -3, 3, 0, TAU); ctx.fill();

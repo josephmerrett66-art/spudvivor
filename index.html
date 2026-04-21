@@ -394,6 +394,7 @@
       <div class="cards" id="shop-cards"></div>
       <div class="controls-row">
         <button class="btn" id="reroll-btn" onclick="rerollShop()">🔄 Reroll (<span id="reroll-cost">3</span>💰)</button>
+        <button class="btn" onclick="openCodex()" style="opacity:0.8">📖 Codex</button>
         <button class="btn primary" onclick="startNextWave()">Next Wave ▶</button>
       </div>
     </div>
@@ -4089,6 +4090,7 @@ function openCodex() {
 function closeCodex() {
   document.getElementById('info-overlay').classList.remove('active');
   if (codexWasPlaying) state = 'playing';
+  codexWasPlaying = false;
 }
 
 function showCodexTab(tab) {

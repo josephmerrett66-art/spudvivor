@@ -263,6 +263,7 @@
       <button class="action-btn" data-action="consume" data-slot="2"><span class="icon" id="m-slot-2">·</span><span class="label">3</span></button>
       <button class="action-btn" data-action="dash" id="m-dash-btn"><span class="icon">💨</span><span class="label">DASH</span></button>
       <button class="action-btn" data-action="place" id="m-place-btn"><span class="icon">🏗️</span><span class="label">PLACE</span><span class="count" id="m-place-count"></span></button>
+      <button class="action-btn" data-action="special" id="m-special-btn"><span class="icon" id="m-special-icon">⚡</span><span class="label">SPECIAL</span></button>
     </div>
   </div>
 
@@ -297,6 +298,16 @@
       </div>
       <div style="margin-top:6px; font-size:10px; opacity:0.7; text-align:right">1 2 3 — consumables</div>
       <div id="consumable-slots" style="margin-top:4px; display:flex; gap:4px; justify-content:flex-end"></div>
+      <div id="special-hud" style="margin-top:6px; display:none">
+        <div style="display:flex; align-items:center; gap:4px; justify-content:flex-end">
+          <span style="font-size:10px; opacity:0.7">Q</span>
+          <span id="special-emoji" style="font-size:13px">⚡</span>
+          <div style="width:50px; height:6px; background:#1a0a10; border:1px solid #6a4028; overflow:hidden">
+            <div id="special-bar" style="height:100%; width:100%; background:linear-gradient(90deg,#a060ff,#e080ff); transition:width 0.1s"></div>
+          </div>
+          <span id="special-cd-text" style="font-size:9px; opacity:0.6"></span>
+        </div>
+      </div>
       <div id="carried-row" style="margin-top:6px; font-size:11px; text-align:right; opacity:0.85; display:none">
         <span style="opacity:0.7">P:</span> <span id="carried-structures"></span>
       </div>
@@ -305,6 +316,16 @@
         <div style="font-size:11px; color:#80c0ff">🔵 P2 HP <b id="p2-hp-text">100/100</b></div>
         <div class="bar" style="margin-top:3px"><div class="bar-fill" id="p2-hp-bar" style="width:100%; background:linear-gradient(90deg,#3060a0,#60a0e0)"></div></div>
         <div style="font-size:10px; color:#80c0ff; margin-top:3px" id="p2-weapons-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="char-select">
+    <div class="panel" style="max-width:680px; width:100%">
+      <h1 style="color:#f4c47a">🥔 CHOOSE YOUR POTATO</h1>
+      <div id="char-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:10px; margin:14px 0; max-height:65vh; overflow-y:auto; -webkit-overflow-scrolling:touch"></div>
+      <div style="text-align:center; margin-top:10px">
+        <button class="btn primary" id="char-confirm-btn" onclick="confirmCharacter()" style="font-size:16px; padding:12px 32px">Choose Difficulty ▶</button>
       </div>
     </div>
   </div>
@@ -335,7 +356,8 @@
     <div class="panel" style="max-width:520px">
       <h1>🥔 SPUDVIVOR</h1>
       <h2>A potato's desperate stand</h2>
-      <p style="text-align:center">Survive endless waves across 25 rooms. Move with <b>WASD</b>. Dash with <b>SPACE</b>. Use consumables with <b>1/2/3</b>. Place structures with <b>P</b>. Toggle music with <b>M</b>. You auto-fire at the nearest enemy. Clear every enemy to unlock a new room.</p>
+      <div id="selected-char-display" style="text-align:center; margin:10px 0; padding:8px; background:#1a0a10; border-radius:6px; border:1px solid #4a3028; font-size:13px"></div>
+      <p style="text-align:center">Survive endless waves across 25 rooms. Move with <b>WASD</b>. Dash with <b>SPACE</b>. Special with <b>Q</b>. Use consumables with <b>1/2/3</b>. Place structures with <b>P</b>. Toggle music with <b>M</b>. You auto-fire at the nearest enemy. Clear every enemy to unlock a new room.</p>
       <h2 style="margin-top:18px; color:#f4c47a">CHOOSE YOUR RUN</h2>
       <div id="difficulty-picker" style="display:flex; flex-direction:column; gap:8px; margin-top:12px"></div>
       <div style="margin-top:12px; padding:10px; background:#1a0e14; border-radius:6px; border:1px solid #6a4028; text-align:center">
@@ -345,8 +367,9 @@
         </label>
         <div style="font-size:10px; opacity:0.6; margin-top:4px">P1: WASD + SPACE | P2: Arrows + SHIFT + [ ] \</div>
       </div>
-      <div style="text-align:center; margin-top:10px">
-        <button class="btn" onclick="openCodex()" style="opacity:0.8; font-size:13px">📖 Codex — Weapons, Enemies & Items</button>
+      <div style="text-align:center; margin-top:10px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap">
+        <button class="btn" onclick="openCharacterSelect()" style="opacity:0.8; font-size:13px">← Change Character</button>
+        <button class="btn" onclick="openCodex()" style="opacity:0.8; font-size:13px">📖 Codex</button>
       </div>
       <div id="credits">Hand-drawn canvas graphics. Single HTML file. No dependencies.</div>
     </div>
@@ -445,9 +468,10 @@
       <h1 style="color:#f4c47a">📖 CODEX</h1>
       <!-- Tab buttons -->
       <div style="display:flex; gap:8px; margin:12px 0; justify-content:center; flex-wrap:wrap">
-        <button class="btn" id="tab-weapons" onclick="showCodexTab('weapons')" style="background:#8b5a3c">🔫 Weapons</button>
-        <button class="btn" id="tab-enemies" onclick="showCodexTab('enemies')">👹 Enemies</button>
-        <button class="btn" id="tab-items"   onclick="showCodexTab('items')">🎒 Items</button>
+        <button class="btn" id="tab-chars"    onclick="showCodexTab('chars')">🥔 Characters</button>
+        <button class="btn" id="tab-weapons"  onclick="showCodexTab('weapons')" style="background:#8b5a3c">🔫 Weapons</button>
+        <button class="btn" id="tab-enemies"  onclick="showCodexTab('enemies')">👹 Enemies</button>
+        <button class="btn" id="tab-items"    onclick="showCodexTab('items')">🎒 Items</button>
       </div>
       <div id="codex-content" style="max-height:60vh; overflow-y:auto; -webkit-overflow-scrolling:touch"></div>
       <div style="text-align:center; margin-top:14px">
@@ -523,6 +547,10 @@ window.addEventListener('keydown', e => {
       const s = player.carriedStructures.shift();
       placeStructure(s.type, player.x, player.y);
     }
+  }
+  // Q: trigger character special ability
+  if (k === 'q' && state === 'playing' && player && !keys[k]) {
+    triggerSpecial();
   }
   // P2 consumable hotkeys: [ ] \
   if (state === 'playing' && player2 && !player2.dead) {
@@ -634,6 +662,8 @@ if (IS_MOBILE) {
           const s = player.carriedStructures.shift();
           placeStructure(s.type, player.x, player.y);
         }
+      } else if (action === 'special') {
+        triggerSpecial();
       }
     }, { passive: false });
     // Prevent stuck-pressed state
@@ -668,6 +698,185 @@ let screenShake = 0;
 let leaveRoomDespawnTimer = 0; // enemies from a previous room despawn after a delay
 
 // ---------- Weapons ----------
+// ============================================================
+// CHARACTERS
+// ============================================================
+let selectedCharacter = 'spud';
+let specialCd = 0; // current cooldown remaining
+let specialMax = 0; // max cooldown (set from character def)
+
+const CHARACTERS = {
+  spud: {
+    name: 'Spud', emoji: '🥔',
+    desc: 'The original potato. Balanced stats, no gimmicks.',
+    passive: 'No special passive.',
+    specialDesc: 'No special ability.',
+    specialCooldown: 0,
+    startWeapons: ['pistol'],
+    color: '#c89060',
+    applyPassive: p => {},
+    special: p => {},
+  },
+  ember: {
+    name: 'Ember', emoji: '🔥',
+    desc: 'Fire specialist. Ignite everything.',
+    passive: 'Ignited enemies take +50% damage from all sources.',
+    specialDesc: 'WILDFIRE — spread fire from each ignited enemy to 3 nearest neighbours.',
+    specialCooldown: 20,
+    startWeapons: ['flamethrower'],
+    color: '#ff6010',
+    applyPassive: p => {},
+    special: p => {
+      let spread = 0;
+      for (const e of enemies) {
+        if (e.igniteDmg > 0 && e.igniteTimer > 0) {
+          // Spread to 3 nearest non-ignited neighbours
+          const sorted = enemies.filter(e2 => e2 !== e && (!e2.igniteDmg || e2.igniteTimer <= 0))
+            .sort((a, b) => dist(e.x, e.y, a.x, a.y) - dist(e.x, e.y, b.x, b.y)).slice(0, 3);
+          for (const t of sorted) {
+            t.igniteDmg = e.igniteDmg; t.igniteTimer = 2.0; t.igniteTick = 0;
+            spawnParticles(t.x, t.y, '#ff6010', 10);
+            spread++;
+          }
+        }
+      }
+      floatTexts.push({ x: p.x, y: p.y - 30, text: '🔥 WILDFIRE ×' + spread, life: 2, color: '#ff6010', size: 18, vy: -25 });
+      screenShake = Math.min(8, screenShake + 4);
+    },
+  },
+  volt: {
+    name: 'Volt', emoji: '⚡',
+    desc: 'Lightning chainer. Electricity arcs between enemies.',
+    passive: 'Tesla chains to +1 extra target.',
+    specialDesc: 'OVERCHARGE — Tesla chains infinitely for 3 seconds.',
+    specialCooldown: 20,
+    startWeapons: ['tesla'],
+    color: '#a060ff',
+    applyPassive: p => {},
+    special: p => {
+      p.voltOvercharge = 3.0;
+      floatTexts.push({ x: p.x, y: p.y - 30, text: '⚡ OVERCHARGE!', life: 2, color: '#a060ff', size: 18, vy: -25 });
+      spawnParticles(p.x, p.y, '#a060ff', 30);
+    },
+  },
+  reaper: {
+    name: 'Reaper', emoji: '🗡️',
+    desc: 'Melee specialist. Gets close and personal.',
+    passive: 'Melee kills heal 2 HP.',
+    specialDesc: 'DEATH SPIN — auto-flail spins around you for 4 seconds.',
+    specialCooldown: 15,
+    startWeapons: ['sword'],
+    color: '#c0c0e0',
+    applyPassive: p => {},
+    special: p => {
+      p.deathSpinTimer = 4.0;
+      floatTexts.push({ x: p.x, y: p.y - 30, text: '🗡️ DEATH SPIN!', life: 2, color: '#c0c0e0', size: 18, vy: -25 });
+      spawnParticles(p.x, p.y, '#c0c0e0', 20);
+      screenShake = Math.min(6, screenShake + 3);
+    },
+  },
+  fortress: {
+    name: 'Fortress', emoji: '🛡️',
+    desc: 'Tank. High armor, reduced damage taken.',
+    passive: '+3 armor, -20% damage taken.',
+    specialDesc: 'BASTION — indestructible shield wall in front for 3 seconds.',
+    specialCooldown: 20,
+    startWeapons: ['cannon'],
+    color: '#8090d0',
+    applyPassive: p => { p.armor += 3; p.damageReduction = 0.20; },
+    special: p => {
+      p.bastionTimer = 3.0;
+      p.bastionAngle = Math.atan2(p.lastDirY, p.lastDirX);
+      floatTexts.push({ x: p.x, y: p.y - 30, text: '🛡️ BASTION!', life: 2, color: '#8090d0', size: 18, vy: -25 });
+      spawnParticles(p.x, p.y, '#8090d0', 20);
+    },
+  },
+  phantom: {
+    name: 'Phantom', emoji: '👻',
+    desc: 'Elusive. Hard to hit, harder to kill.',
+    passive: '15% dodge chance from the start.',
+    specialDesc: 'PHASE — invincible + 3× speed for 2 seconds.',
+    specialCooldown: 25,
+    startWeapons: ['boomerang'],
+    color: '#80e0ff',
+    applyPassive: p => { p.dodgeChance = Math.min(1, p.dodgeChance + 0.15); },
+    special: p => {
+      p.phaseTimer = 2.0;
+      floatTexts.push({ x: p.x, y: p.y - 30, text: '👻 PHASE!', life: 2, color: '#80e0ff', size: 18, vy: -25 });
+      spawnParticles(p.x, p.y, '#80e0ff', 25);
+    },
+  },
+  scrooge: {
+    name: 'Scrooge', emoji: '💰',
+    desc: 'Economy king. Coins and discounts are your power.',
+    passive: 'Shop items cost 20% less. Starts with +30 coins.',
+    specialDesc: 'GOLDEN TOUCH — next wave drops 3× coins (once per shop).',
+    specialCooldown: 0, // recharged each shop visit
+    startWeapons: ['pistol'],
+    color: '#f0d060',
+    applyPassive: p => { p.shopDiscount = Math.min(0.4, p.shopDiscount + 0.20); p.coins += 30; },
+    special: p => {
+      p.goldenWave = true;
+      floatTexts.push({ x: p.x, y: p.y - 30, text: '💰 GOLDEN TOUCH!', life: 2, color: '#f0d060', size: 18, vy: -25 });
+      spawnParticles(p.x, p.y, '#f0d060', 30);
+      // Recharge special only at next shop visit — handled in openShop
+      specialCd = 999; // disable until shop resets it
+    },
+  },
+  chemist: {
+    name: 'Chemist', emoji: '🧪',
+    desc: 'Consumable expert. Everything has two uses.',
+    passive: 'Consumables have 2 charges instead of 1.',
+    specialDesc: 'SYNTHESIS — instantly refills all consumable slots.',
+    specialCooldown: 30,
+    startWeapons: ['pistol'],
+    color: '#60e0a0',
+    applyPassive: p => { p.consumableCharges = 2; },
+    special: p => {
+      // Refill any empty consumable slots with a random consumable
+      const types = Object.keys(CONSUMABLES);
+      for (let i = 0; i < p.consumables.length; i++) {
+        if (!p.consumables[i]) p.consumables[i] = { type: pick(types), charges: 2 };
+      }
+      floatTexts.push({ x: p.x, y: p.y - 30, text: '🧪 SYNTHESIS!', life: 2, color: '#60e0a0', size: 18, vy: -25 });
+      spawnParticles(p.x, p.y, '#60e0a0', 25);
+    },
+  },
+  hunter: {
+    name: 'Hunter', emoji: '🏹',
+    desc: 'Precision sniper. One shot, one kill.',
+    passive: '+30% bullet speed. Railgun cooldown reduced to 1.8s. Marked enemies take +25% damage.',
+    specialDesc: 'HEADSHOT — next shot is guaranteed double-damage crit.',
+    specialCooldown: 12,
+    startWeapons: ['railgun'],
+    color: '#80c040',
+    applyPassive: p => { p.bulletSpdMult = capMul(p.bulletSpdMult * 1.3); },
+    special: p => {
+      p.headshot = true;
+      floatTexts.push({ x: p.x, y: p.y - 30, text: '🏹 HEADSHOT READY!', life: 2, color: '#80c040', size: 18, vy: -25 });
+      spawnParticles(p.x, p.y, '#80c040', 15);
+    },
+  },
+  cyclone: {
+    name: 'Cyclone', emoji: '🌪️',
+    desc: 'Pulls enemies in, then destroys them with the flail.',
+    passive: 'Flail orbit grows +5px per level.',
+    specialDesc: 'VORTEX — pull all room enemies toward you for 2 seconds.',
+    specialCooldown: 18,
+    startWeapons: ['flail'],
+    color: '#60c0e0',
+    applyPassive: p => {},
+    special: p => {
+      p.vortexTimer = 2.0;
+      floatTexts.push({ x: p.x, y: p.y - 30, text: '🌪️ VORTEX!', life: 2, color: '#60c0e0', size: 18, vy: -25 });
+      spawnParticles(p.x, p.y, '#60c0e0', 30);
+      screenShake = Math.min(8, screenShake + 4);
+    },
+  },
+};
+
+function currentChar() { return CHARACTERS[selectedCharacter] || CHARACTERS.spud; }
+
 const WEAPONS = {
   pistol:   { name:'Pistol',       cooldown:0.45, damage:6,  speed:520, range:420, pellets:1, spread:0,    pierce:0,  bulletSize:4, color:'#f4c47a' },
   shotgun:  { name:'Shotgun',      cooldown:0.95, damage:4,  speed:480, range:280, pellets:5, spread:0.45, pierce:0,  bulletSize:3, color:'#ff8040' },
@@ -1296,7 +1505,21 @@ function startGame(diffKey) {
   if (musicAudio && musicEnabled && musicAudio.paused) playMusic();
   document.getElementById('menu').classList.remove('active');
   player = makePlayer(-30, 0);
+  // Apply character
+  const ch = currentChar();
+  player.weapons = ch.startWeapons.map(w => ({ type: w, cd: 0 }));
+  ch.applyPassive(player);
+  // Init special ability cooldown
+  specialCd = 0;
+  specialMax = ch.specialCooldown;
+  // Hunter: reduced railgun cooldown
+  if (selectedCharacter === 'hunter') {
+    player.railgunCdOverride = 1.8;
+  }
   player2 = multiplayerEnabled ? makePlayer(30, 0) : null;
+  if (player2) {
+    player2.weapons = [{ type: 'pistol', cd: 0 }];
+  }
   enemies = []; bullets = []; enemyBullets = []; pickups = []; particles = []; floatTexts = [];
   allies = []; structures = []; puddles = [];
   wave = 0;
@@ -1323,22 +1546,80 @@ function requestFullscreen() { tryFullscreen(); }
 
 function enterFullscreenAndContinue() {
   tryFullscreen();
-  playMusic(); // start music on this user gesture — most reliable trigger point
+  playMusic();
   setTimeout(() => {
     document.getElementById('fs-gate').classList.remove('active');
-    document.getElementById('menu').classList.add('active');
+    document.getElementById('char-select').classList.add('active');
+    renderCharacterSelect();
     if (typeof resizeCanvas === 'function') resizeCanvas();
   }, 150);
 }
 
 function skipFullscreen() {
-  playMusic(); // also start on skip tap
+  playMusic();
   document.getElementById('fs-gate').classList.remove('active');
-  document.getElementById('menu').classList.add('active');
+  document.getElementById('char-select').classList.add('active');
+  renderCharacterSelect();
 }
 
 // ---------- Difficulty picker ----------
+function renderCharacterSelect() {
+  const container = document.getElementById('char-grid');
+  if (!container) return;
+  container.innerHTML = '';
+  for (const [key, ch] of Object.entries(CHARACTERS)) {
+    const card = document.createElement('div');
+    const isSelected = key === selectedCharacter;
+    card.style.cssText = `
+      border: 2px solid ${isSelected ? ch.color : '#4a3028'};
+      border-radius:6px; padding:12px; cursor:pointer;
+      background: ${isSelected ? '#2a1a0a' : '#1a0a10'};
+      transition: all 0.15s;
+      box-shadow: ${isSelected ? '0 0 12px ' + ch.color + '60' : 'none'};
+    `;
+    card.innerHTML = `
+      <div style="font-size:28px; text-align:center; margin-bottom:6px">${ch.emoji}</div>
+      <div style="font-weight:bold; color:${ch.color}; font-size:14px; text-align:center">${ch.name}</div>
+      <div style="font-size:10px; color:#a09080; margin:6px 0">${ch.desc}</div>
+      <div style="font-size:10px; margin-top:6px">
+        <div style="color:#f4c47a; margin-bottom:2px">⚡ ${ch.passive}</div>
+        <div style="color:#a060ff">${ch.specialCooldown > 0 ? '🔑 Q: ' : ''}${ch.specialDesc}</div>
+        ${ch.specialCooldown > 0 ? '<div style="color:#808080; font-size:9px; margin-top:2px">Cooldown: ' + ch.specialCooldown + 's</div>' : ''}
+      </div>
+      <div style="font-size:10px; margin-top:6px; color:#608050">
+        Starts with: ${ch.startWeapons.map(w => WEAPONS[w].name).join(', ')}
+      </div>
+    `;
+    card.onclick = () => {
+      selectedCharacter = key;
+      renderCharacterSelect();
+    };
+    container.appendChild(card);
+  }
+}
+
+function confirmCharacter() {
+  document.getElementById('char-select').classList.remove('active');
+  document.getElementById('menu').classList.add('active');
+}
+
+function openCharacterSelect() {
+  document.getElementById('menu').classList.remove('active');
+  document.getElementById('char-select').classList.add('active');
+  renderCharacterSelect();
+}
+
 function renderDifficultyPicker() {
+  // Update selected character display
+  const ch = currentChar();
+  const charDisplay = document.getElementById('selected-char-display');
+  if (charDisplay) {
+    charDisplay.innerHTML = `
+      <span style="font-size:20px">${ch.emoji}</span>
+      <span style="color:${ch.color}; font-weight:bold; margin:0 8px">${ch.name}</span>
+      <span style="color:#a09080; font-size:11px">${ch.desc}</span>
+    `;
+  }
   const container = document.getElementById('difficulty-picker');
   if (!container) return;
   container.innerHTML = '';
@@ -1548,6 +1829,13 @@ function update(dt) {
 
   // Speed: normal during move, boosted during dash
   let spd = player.baseSpeed * player.spdMult;
+  // PHANTOM phase: 3x speed
+  if (player.phaseTimer > 0) spd *= 3;
+  // CYCLONE: flail orbit grows +5px per level
+  if (selectedCharacter === 'cyclone') {
+    const flailDef = WEAPONS.flail;
+    flailDef._orbitRadius = 70 + (player.level - 1) * 5;
+  }
   let moveDx = dx, moveDy = dy;
   if (player.dashTime > 0) {
     spd = 1100; // dash speed
@@ -1580,6 +1868,76 @@ function update(dt) {
     // Enemies persist across rooms now — player has to hunt them down to clear the wave.
     // No despawn timer.
   }
+
+  // Special ability cooldown tick
+  if (specialCd > 0) specialCd = Math.max(0, specialCd - dt);
+
+  // --- Character special effect mechanics ---
+  // PHANTOM: phase — invincible + 3x speed
+  if (player.phaseTimer > 0) {
+    player.phaseTimer -= dt;
+    player.iframe = Math.max(player.iframe, 0.1); // keep invincible
+    // 3x speed applied via spdMult override below
+  }
+
+  // REAPER: death spin — auto flail around player
+  if (player.deathSpinTimer > 0) {
+    player.deathSpinTimer -= dt;
+    player.spinAngleDS = (player.spinAngleDS || 0) + dt * 8;
+    const fx = player.x + Math.cos(player.spinAngleDS) * 80;
+    const fy = player.y + Math.sin(player.spinAngleDS) * 80;
+    const dmgDS = 30 * player.dmgMult;
+    for (const e of enemies) {
+      if (dist(fx, fy, e.x, e.y) < e.r + 14) {
+        e.hp -= dmgDS * dt * 3; e.hitFlash = 0.1; damageDealt += dmgDS * dt * 3;
+        if (e.hp <= 0) killEnemy(e);
+      }
+    }
+    bullets.push({ x: fx, y: fy, vx: 0, vy: 0, dmg: 0, size: 12, color: '#c0c0e0', life: 0.08, pierce: 99, hit: new Set(), bounce: 0, explosive: 0, knockback: 0, slowOnHit: 0, isVisual: true });
+  }
+
+  // CYCLONE: vortex — pull all room enemies toward player
+  if (player.vortexTimer > 0) {
+    player.vortexTimer -= dt;
+    for (const e of enemies) {
+      if (e.room.x === currentRoom.x && e.room.y === currentRoom.y) {
+        const d = dist(player.x, player.y, e.x, e.y);
+        if (d > 5) {
+          const pull = 400;
+          e.x += ((player.x - e.x) / d) * pull * dt;
+          e.y += ((player.y - e.y) / d) * pull * dt;
+        }
+      }
+    }
+  }
+
+  // FORTRESS: bastion — indestructible wall in front
+  if (player.bastionTimer > 0) {
+    player.bastionTimer -= dt;
+    const ang = player.bastionAngle;
+    const bx = player.x + Math.cos(ang) * 55;
+    const by = player.y + Math.sin(ang) * 55;
+    // Block enemies that try to cross the wall
+    for (const e of enemies) {
+      const d = dist(bx, by, e.x, e.y);
+      if (d < 40) {
+        const push = Math.atan2(e.y - by, e.x - bx);
+        e.x += Math.cos(push) * (40 - d);
+        e.y += Math.sin(push) * (40 - d);
+      }
+    }
+    // Visual shield wall
+    bullets.push({ x: bx, y: by, vx: 0, vy: 0, dmg: 0, size: 35, color: '#8090d0', life: 0.05, pierce: 99, hit: new Set(), bounce: 0, explosive: 0, knockback: 0, slowOnHit: 0, isVisual: true });
+  }
+
+  // VOLT: overcharge — tesla chains infinitely
+  if (player.voltOvercharge > 0) player.voltOvercharge -= dt;
+
+  // REAPER: melee kill heal (handled in killEnemy via flag)
+  // EMBER: ignite damage bonus (handled in bullet hit)
+  // HUNTER: headshot flag (consumed on next shot in fireWeapon)
+  // CYCLONE: orbit growth (applied in flail logic based on level)
+  // SCROOGE: golden wave (applied in killEnemy coin drops)
 
   // Regen
   if (player.regen > 0 && player.hp < player.maxHp) {
@@ -1861,8 +2219,10 @@ function update(dt) {
           explodeGrenade(b.x, b.y);
           bullets.splice(i, 1); consumed = true; break;
         }
-        const isCrit = Math.random() < player.crit;
-        let dmg = b.dmg * (isCrit ? (player.critDmg || 2) : 1);
+        // HUNTER headshot: next shot is guaranteed double-damage crit
+        let isCrit = Math.random() < player.crit;
+        if (player.headshot) { isCrit = true; player.headshot = false; }
+        let dmg = b.dmg * (isCrit ? (player.critDmg || 2) * (player.headshot ? 2 : 1) : 1);
         // Shielded elite: incoming damage is halved until shield breaks
         if (e.shieldHp > 0) {
           const shieldAbsorbed = dmg;
@@ -1874,6 +2234,8 @@ function update(dt) {
             e.shieldHp = 0;
           }
         }
+        // EMBER: ignited enemies take +50% damage
+        if (selectedCharacter === 'ember' && e.igniteDmg > 0 && e.igniteTimer > 0) dmg *= 1.5;
         e.hp -= dmg; e.hitFlash = 0.1; damageDealt += dmg;
         spawnParticles(b.x, b.y, b.color, 4);
         floatTexts.push({ x: e.x, y: e.y - e.r, text: Math.round(dmg), life: 0.6, color: isCrit ? '#ffff40' : '#ffffff', size: isCrit ? 18 : 14, vy: -30 });
@@ -2434,7 +2796,9 @@ function fireWeapon(type, target) {
     const target0 = findNearestEnemy(player.x, player.y, def.range);
     if (!target0) return;
     const chain = [target0]; let last = target0;
-    for (let c = 1; c < def.chainCount; c++) {
+    // VOLT passive: +1 chain. VOLT overcharge: infinite chains
+    const chainMax = player.voltOvercharge > 0 ? enemies.length : def.chainCount + (selectedCharacter === 'volt' ? 1 : 0);
+    for (let c = 1; c < chainMax; c++) {
       let best = null, bestDist = def.chainRange;
       for (const e of enemies) {
         if (chain.includes(e)) continue;
@@ -2571,16 +2935,20 @@ function killEnemy(e) {
   const xpVal = Math.max(1, Math.floor(e.xp * player.xpMult * 0.5));
   pickups.push({ type: 'xp', x: e.x, y: e.y, value: xpVal, life: 30 });
 
-  // Coin drops — heavily cut to keep economy tight.
-  // Walkers/runners skip drop 60% of the time (unless elite). Brutes always drop.
+  // REAPER: heal 2 HP on kill (any kill, not just melee — keeps it feeling rewarding)
+  if (selectedCharacter === 'reaper' && player.hp < player.maxHp) {
+    player.hp = Math.min(player.maxHp, player.hp + 2);
+  }
+
+  // Coin drops
   const skipCoin = !e.elite && (e.type === 'walker' || e.type === 'runner') && Math.random() < 0.6;
   if (!skipCoin) {
-    // Base 0.3x, shrinks further past wave 15 (0.9x per wave beyond, min 0.1x)
     const lateDrop = Math.max(0.1, Math.pow(0.9, Math.max(0, wave - 15)));
     const diffCoinMult = currentDiff().coinMult || 1;
     const mpMult = (multiplayerEnabled && player2) ? 1.7 : 1;
-    const coinVal = Math.max(1, Math.floor(e.coin * player.coinMult * 0.3 * lateDrop * diffCoinMult * mpMult));
-    // Elites drop MORE coin pickups
+    // SCROOGE: golden wave gives 3x coins
+    const scroogeMult = (selectedCharacter === 'scrooge' && player.goldenWave) ? 3 : 1;
+    const coinVal = Math.max(1, Math.floor(e.coin * player.coinMult * 0.3 * lateDrop * diffCoinMult * mpMult * scroogeMult));
     const baseCoinCount = e.type === 'boss' ? 20 : (e.type === 'brute' ? 2 : 1);
     const coinCount = e.elite ? baseCoinCount * 2 : baseCoinCount;
     for (let i = 0; i < coinCount; i++) {
@@ -2663,6 +3031,18 @@ function spawnAlly(type, x, y) {
     hitFlash: 0, bobPhase: rand(0, TAU),
   });
   floatTexts.push({ x, y: y - 25, text: '+ ' + def.name, life: 2, color: def.color, size: 16, vy: -25 });
+}
+
+function triggerSpecial() {
+  const ch = currentChar();
+  if (ch.specialCooldown === 0) return; // Spud / no special
+  if (specialCd > 0) {
+    floatTexts.push({ x: player.x, y: player.y - 30, text: '⏳ ' + Math.ceil(specialCd) + 's', life: 0.8, color: '#ff8040', size: 14, vy: -20 });
+    return;
+  }
+  ch.special(player);
+  specialCd = ch.specialCooldown;
+  specialMax = ch.specialCooldown;
 }
 
 function placeStructure(type, x, y) {
@@ -2941,7 +3321,12 @@ function currentPurchaseCap() {
 
 function openShop() {
   state = 'shop';
-  shopActivePlayer = 1; // always start on P1
+  shopActivePlayer = 1;
+  // SCROOGE: reset golden wave each shop visit, restore special
+  if (selectedCharacter === 'scrooge') {
+    player.goldenWave = false;
+    specialCd = 0; // recharge special each shop visit
+  }
   const rerollBase = 3 + Math.floor(wave * 0.5);
   rerollCost = Math.max(1, Math.ceil(rerollBase * (1 - (player.rerollDiscount || 0))));
   shopPurchases = 0;
@@ -3240,6 +3625,24 @@ function updateHUD() {
     }
   }
 
+  // Special ability HUD
+  const specialHud = document.getElementById('special-hud');
+  if (specialHud) {
+    const ch = currentChar();
+    if (ch.specialCooldown > 0) {
+      specialHud.style.display = 'block';
+      const pct = specialCd > 0 ? ((specialMax - specialCd) / specialMax * 100) : 100;
+      const barEl = document.getElementById('special-bar');
+      const cdEl = document.getElementById('special-cd-text');
+      const emojiEl = document.getElementById('special-emoji');
+      if (barEl) { barEl.style.width = pct + '%'; barEl.style.background = specialCd > 0 ? 'linear-gradient(90deg,#404050,#606070)' : 'linear-gradient(90deg,#a060ff,#e080ff)'; }
+      if (cdEl) cdEl.textContent = specialCd > 0 ? Math.ceil(specialCd) + 's' : 'READY';
+      if (emojiEl) emojiEl.textContent = ch.emoji;
+    } else {
+      specialHud.style.display = 'none';
+    }
+  }
+
   // P2 HUD
   const p2hud = document.getElementById('p2-hud');
   if (p2hud) {
@@ -3275,8 +3678,17 @@ function updateHUD() {
       const btn = iconEl.closest('.action-btn');
       if (btn) btn.classList.toggle('disabled', !c);
     }
+    // Special button icon + disabled state
+    const mSpecialBtn = document.getElementById('m-special-btn');
+    const mSpecialIcon = document.getElementById('m-special-icon');
+    if (mSpecialBtn && mSpecialIcon) {
+      const ch = currentChar();
+      mSpecialIcon.textContent = ch.emoji;
+      mSpecialBtn.classList.toggle('disabled', specialCd > 0 || ch.specialCooldown === 0);
+    }
     // Dash button dimmed when on cooldown
     const dashBtn = document.getElementById('m-dash-btn');
+    if (dashBtn) dashBtn.classList.toggle('disabled', player.dashCd > 0);
     if (dashBtn) dashBtn.classList.toggle('disabled', player.dashCd > 0);
     // Place button shows count of carried structures
     const placeBtn = document.getElementById('m-place-btn');
@@ -4323,7 +4735,7 @@ window.rerollShop = rerollShop;
 window.closeStatsCard = closeStatsCard;
 
 // ---------- Codex ----------
-let codexTab = 'weapons';
+let codexTab = 'chars';
 let codexWasPlaying = false;
 
 function openCodex() {
@@ -4342,14 +4754,45 @@ function closeCodex() {
 function showCodexTab(tab) {
   codexTab = tab;
   // Highlight active tab
-  ['weapons','enemies','items'].forEach(t => {
-    const btn = document.getElementById('tab-' + t);
-    if (btn) btn.style.background = t === tab ? '#8b5a3c' : '';
-  });
   const el = document.getElementById('codex-content');
   if (!el) return;
 
-  if (tab === 'weapons') {
+  ['chars','weapons','enemies','items'].forEach(t => {
+    const btn = document.getElementById('tab-' + t);
+    if (btn) btn.style.background = t === tab ? '#8b5a3c' : '';
+  });
+
+  if (tab === 'chars') {
+    const rarityColor = { common: '#c0c0c0', rare: '#60a0ff', epic: '#c060ff' };
+    const rows = Object.entries(CHARACTERS).map(([key, ch]) => {
+      const isSelected = key === selectedCharacter;
+      return `
+        <div style="border:2px solid ${isSelected ? ch.color : '#3a2828'}; border-radius:6px; padding:12px; margin-bottom:10px; background:${isSelected ? '#1a0a0a' : '#140a0a'}">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px">
+            <span style="font-size:28px">${ch.emoji}</span>
+            <div>
+              <div style="font-weight:bold; color:${ch.color}; font-size:16px">${ch.name}${isSelected ? ' <span style="font-size:11px; color:#f4c47a">← current</span>' : ''}</div>
+              <div style="font-size:11px; color:#a09080; margin-top:2px">${ch.desc}</div>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:11px">
+            <div style="padding:6px; background:#1a0a10; border-radius:4px">
+              <div style="color:#f4c47a; font-weight:bold; margin-bottom:3px">⚡ Passive</div>
+              <div style="color:#d0c0a0">${ch.passive}</div>
+            </div>
+            <div style="padding:6px; background:#1a0a10; border-radius:4px">
+              <div style="color:#a060ff; font-weight:bold; margin-bottom:3px">🔑 Special (Q)${ch.specialCooldown > 0 ? ' — ' + ch.specialCooldown + 's CD' : ''}</div>
+              <div style="color:#d0c0a0">${ch.specialDesc}</div>
+            </div>
+          </div>
+          <div style="margin-top:8px; font-size:11px; color:#608050">
+            <b>Starts with:</b> ${ch.startWeapons.map(w => WEAPONS[w].name).join(', ')}
+          </div>
+        </div>`;
+    }).join('');
+    el.innerHTML = rows;
+
+  } else if (tab === 'weapons') {
     const rows = Object.entries(WEAPONS).map(([key, w]) => {
       const special = w.special ? `<span style="color:#a060ff; font-size:10px"> ✦ ${w.special}</span>` : '';
       const dps = w.speed > 0 ? (w.damage * w.pellets / w.cooldown).toFixed(1) : '—';
@@ -4436,10 +4879,14 @@ window.closeCodex = closeCodex;
 window.showCodexTab = showCodexTab;
 window.cancelWeaponReplace = cancelWeaponReplace;
 window.setShopPlayer = setShopPlayer;
+window.openCharacterSelect = openCharacterSelect;
+window.confirmCharacter = confirmCharacter;
+window.triggerSpecial = triggerSpecial;
 window.requestFullscreen = requestFullscreen;
 window.enterFullscreenAndContinue = enterFullscreenAndContinue;
 window.skipFullscreen = skipFullscreen;
 renderDifficultyPicker();
+renderCharacterSelect();
 initMusic();
 requestAnimationFrame(loop);
 

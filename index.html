@@ -1225,7 +1225,7 @@ function requestFullscreen() { tryFullscreen(); }
 
 function enterFullscreenAndContinue() {
   tryFullscreen();
-  // Small delay to let fullscreen resize the viewport before showing the menu
+  playMusic(); // start music on this user gesture — most reliable trigger point
   setTimeout(() => {
     document.getElementById('fs-gate').classList.remove('active');
     document.getElementById('menu').classList.add('active');
@@ -1234,6 +1234,7 @@ function enterFullscreenAndContinue() {
 }
 
 function skipFullscreen() {
+  playMusic(); // also start on skip tap
   document.getElementById('fs-gate').classList.remove('active');
   document.getElementById('menu').classList.add('active');
 }
@@ -3403,23 +3404,14 @@ function drawEnemyFace(type, offX = 0, offY = 0) {
 // Supports .mp3, .ogg, .wav, .m4a. Songs shuffle and auto-advance when one ends.
 // Music starts/unpauses when you start a run. Toggle with 'M' key.
 const MUSIC_TRACKS = [
-  // Add your track filenames here, e.g.:
-  // 'track1.mp3', 'track2.mp3', 'track3.mp3'
+  'track1.mp3',
 ];
 
 let musicAudio = null;
 let musicIndex = 0;
 let musicEnabled = true;
 let musicVolume = 0.4;
-
-function initMusic() {
-  if (MUSIC_TRACKS.length === 0) return;
-  musicAudio = new Audio();
-  musicAudio.volume = musicVolume;
-  musicAudio.addEventListener('ended', nextTrack);
-  // Shuffle tracks on start
-  shuffle(MUSIC_TRACKS);
-}
+let musicStarted = false;
 
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -3428,10 +3420,39 @@ function shuffle(arr) {
   }
 }
 
+function initMusic() {
+  if (MUSIC_TRACKS.length === 0) return;
+  shuffle(MUSIC_TRACKS);
+}
+
 function playMusic() {
-  if (!musicEnabled || MUSIC_TRACKS.length === 0 || !musicAudio) return;
+  if (!musicEnabled || MUSIC_TRACKS.length === 0) return;
+  // Always create a fresh Audio element — avoids stale src issues
+  if (musicAudio) {
+    musicAudio.pause();
+    musicAudio.onended = null;
+    musicAudio.onerror = null;
+  }
+  musicAudio = new Audio();
+  musicAudio.volume = musicVolume;
+  musicAudio.preload = 'auto';
   musicAudio.src = MUSIC_TRACKS[musicIndex];
-  musicAudio.play().catch(err => console.log('Music blocked, will retry on user gesture:', err.message));
+  musicAudio.onended = nextTrack;
+  musicAudio.onerror = () => {
+    console.log('Track failed to load:', MUSIC_TRACKS[musicIndex], '— skipping to next');
+    nextTrack();
+  };
+  // Load then play explicitly
+  musicAudio.load();
+  const playPromise = musicAudio.play();
+  if (playPromise !== undefined) {
+    playPromise.then(() => {
+      console.log('Music playing:', MUSIC_TRACKS[musicIndex]);
+      musicStarted = true;
+    }).catch(err => {
+      console.log('Music play failed:', err.message);
+    });
+  }
 }
 
 function nextTrack() {
@@ -3442,10 +3463,12 @@ function nextTrack() {
 
 function toggleMusic() {
   musicEnabled = !musicEnabled;
-  if (!musicAudio) return;
-  if (musicEnabled) playMusic();
-  else musicAudio.pause();
-  floatTexts.push({ x: player ? player.x : 400, y: player ? player.y - 30 : 300, text: musicEnabled ? '🎵 Music ON' : '🔇 Music OFF', life: 2, color: '#f4c47a', size: 16, vy: -20 });
+  if (!musicEnabled && musicAudio) {
+    musicAudio.pause();
+  } else if (musicEnabled) {
+    playMusic();
+  }
+  if (player) floatTexts.push({ x: player.x, y: player.y - 30, text: musicEnabled ? '🎵 Music ON' : '🔇 Music OFF', life: 2, color: '#f4c47a', size: 16, vy: -20 });
 }
 
 // 'M' key toggles music

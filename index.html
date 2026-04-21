@@ -610,22 +610,18 @@ let leaveRoomDespawnTimer = 0; // enemies from a previous room despawn after a d
 
 // ---------- Weapons ----------
 const WEAPONS = {
-  pistol: {
-    name: 'Pistol', cooldown: 0.45, damage: 6, speed: 520, range: 420,
-    pellets: 1, spread: 0, pierce: 0, bulletSize: 4, color: '#f4c47a'
-  },
-  shotgun: {
-    name: 'Shotgun', cooldown: 0.95, damage: 4, speed: 480, range: 280,
-    pellets: 5, spread: 0.45, pierce: 0, bulletSize: 3, color: '#ff8040'
-  },
-  smg: {
-    name: 'SMG', cooldown: 0.12, damage: 2, speed: 600, range: 380,
-    pellets: 1, spread: 0.1, pierce: 0, bulletSize: 3, color: '#70ff70'
-  },
-  cannon: {
-    name: 'Cannon', cooldown: 1.6, damage: 25, speed: 400, range: 520,
-    pellets: 1, spread: 0, pierce: 3, bulletSize: 8, color: '#ff4080'
-  }
+  pistol:   { name:'Pistol',       cooldown:0.45, damage:6,  speed:520, range:420, pellets:1, spread:0,    pierce:0,  bulletSize:4, color:'#f4c47a' },
+  shotgun:  { name:'Shotgun',      cooldown:0.95, damage:4,  speed:480, range:280, pellets:5, spread:0.45, pierce:0,  bulletSize:3, color:'#ff8040' },
+  smg:      { name:'SMG',          cooldown:0.12, damage:2,  speed:600, range:380, pellets:1, spread:0.1,  pierce:0,  bulletSize:3, color:'#70ff70' },
+  cannon:   { name:'Cannon',       cooldown:1.6,  damage:25, speed:400, range:520, pellets:1, spread:0,    pierce:3,  bulletSize:8, color:'#ff4080' },
+  laser:    { name:'Laser',        cooldown:0.08, damage:3,  speed:0,   range:500, pellets:1, spread:0,    pierce:99, bulletSize:3, color:'#ff2020', special:'laser',         heatMax:1.0, heatPerShot:0.12, heatCoolRate:0.6 },
+  flamethrower:{ name:'Flamethrower', cooldown:0.06,damage:2,speed:260,range:150, pellets:3, spread:0.5,  pierce:2,  bulletSize:6, color:'#ff6010', special:'flame',     igniteDmg:3, igniteDuration:2.0 },
+  railgun:  { name:'Railgun',      cooldown:2.5,  damage:80, speed:900, range:700, pellets:1, spread:0,    pierce:99, bulletSize:5, color:'#40ffff', special:'railgun',       chargeTime:0.6 },
+  boomerang:{ name:'Boomerang',    cooldown:1.2,  damage:18, speed:360, range:300, pellets:1, spread:0,    pierce:5,  bulletSize:8, color:'#d4a030', special:'boomerang' },
+  tesla:    { name:'Tesla',        cooldown:0.8,  damage:12, speed:0,   range:250, pellets:1, spread:0,    pierce:0,  bulletSize:5, color:'#a060ff', special:'tesla',         chainCount:4, chainRange:120, chainDmgFalloff:0.6 },
+  sword:    { name:'Sword',        cooldown:0.55, damage:35, speed:0,   range:90,  pellets:1, spread:0,    pierce:5,  bulletSize:0, color:'#c0c0e0', special:'melee_arc',     arcAngle:2.2, arcRange:90 },
+  spear:    { name:'Spear',        cooldown:0.7,  damage:50, speed:0,   range:130, pellets:1, spread:0,    pierce:99, bulletSize:0, color:'#a08050', special:'melee_thrust',  thrustWidth:30, thrustKnockback:80 },
+  flail:    { name:'Flail',        cooldown:0.2,  damage:8,  speed:0,   range:70,  pellets:1, spread:0,    pierce:3,  bulletSize:0, color:'#e0a030', special:'melee_spin' },
 };
 
 // ---------- Upgrades (level-up picks) ----------
@@ -665,9 +661,17 @@ const UPGRADES = [
 
 // ---------- Shop items ----------
 const SHOP_ITEMS = [
-  { name: 'Shotgun', desc: 'Close-range spread weapon', cost: 15, rarity: 'rare',   type: 'weapon', weapon: 'shotgun' },
-  { name: 'SMG',     desc: 'Fast-firing, low damage',   cost: 15, rarity: 'rare',   type: 'weapon', weapon: 'smg' },
-  { name: 'Cannon',  desc: 'Slow, heavy, pierces',      cost: 25, rarity: 'epic',   type: 'weapon', weapon: 'cannon' },
+  { name: 'Shotgun',      desc: 'Close-range spread weapon',          cost: 15, rarity: 'rare',   type: 'weapon', weapon: 'shotgun' },
+  { name: 'SMG',          desc: 'Fast-firing, low damage',            cost: 15, rarity: 'rare',   type: 'weapon', weapon: 'smg' },
+  { name: 'Cannon',       desc: 'Slow, heavy, pierces 3',             cost: 25, rarity: 'epic',   type: 'weapon', weapon: 'cannon' },
+  { name: 'Laser',        desc: 'Continuous beam, overheats fast',    cost: 22, rarity: 'epic',   type: 'weapon', weapon: 'laser' },
+  { name: 'Flamethrower', desc: 'Short-range cone, ignites enemies',  cost: 20, rarity: 'rare',   type: 'weapon', weapon: 'flamethrower' },
+  { name: 'Railgun',      desc: 'Slow charge, pierces everything',    cost: 30, rarity: 'epic',   type: 'weapon', weapon: 'railgun' },
+  { name: 'Boomerang',    desc: 'Returns to you, hits twice',         cost: 18, rarity: 'rare',   type: 'weapon', weapon: 'boomerang' },
+  { name: 'Tesla',        desc: 'Chains lightning to 4 enemies',      cost: 24, rarity: 'epic',   type: 'weapon', weapon: 'tesla' },
+  { name: 'Sword',        desc: 'Wide melee arc, high damage',        cost: 18, rarity: 'rare',   type: 'weapon', weapon: 'sword' },
+  { name: 'Spear',        desc: 'Narrow thrust, pierces all',         cost: 20, rarity: 'rare',   type: 'weapon', weapon: 'spear' },
+  { name: 'Flail',        desc: 'Spins around you, no aiming',        cost: 16, rarity: 'rare',   type: 'weapon', weapon: 'flail' },
   { name: 'Pistol',  desc: 'Another reliable pistol',   cost: 10, rarity: 'common', type: 'weapon', weapon: 'pistol' },
   { name: 'Sharp Rounds',  desc: '+20% damage',        cost: 10, rarity: 'common', type: 'stat', apply: p => p.dmgMult = capMul(dimBoost(p.dmgMult, 1.20)) },
   { name: 'Fast Hands',    desc: '+15% attack speed',  cost: 10, rarity: 'common', type: 'stat', apply: p => p.atkSpdMult = capMul(dimBoost(p.atkSpdMult, 1.15)) },
@@ -1382,8 +1386,11 @@ function spawnEnemyAt(type, x, y, gx, gy) {
     spikeAccum: 0,
     room: { x: gx, y: gy },
     elite: eliteType,
-    // Shielded: half damage until shield (50% of max HP) is depleted
     shieldHp: eliteType === 'shielded' ? def.baseHp * hpMult * 0.5 : 0,
+    // Ignite DoT (from flamethrower)
+    igniteDmg: 0, igniteTimer: 0, igniteTick: 0,
+    // Slow (from frost bullets)
+    slowTimer: 0,
   });
 }
 
@@ -1549,9 +1556,59 @@ function update(dt) {
     }
   }
 
+  // Laser heat cooldown (runs regardless of shooting)
+  for (const w of player.weapons) {
+    const def = WEAPONS[w.type];
+    if (def && def.special === 'laser') {
+      if (w.overheated) {
+        w.heat = (w.heat || 0) - def.heatCoolRate * dt;
+        if (w.heat <= 0) { w.heat = 0; w.overheated = false; }
+      } else {
+        w.heat = Math.max(0, (w.heat || 0) - def.heatCoolRate * dt * 0.3);
+      }
+    }
+  }
+
+  // Ignite DoT tick on enemies
+  for (const e of enemies) {
+    if (e.igniteDmg > 0 && e.igniteTimer > 0) {
+      e.igniteTimer -= dt;
+      e.igniteTick = (e.igniteTick || 0) + dt;
+      if (e.igniteTick >= 0.3) {
+        e.hp -= e.igniteDmg; damageDealt += e.igniteDmg;
+        e.hitFlash = 0.05;
+        spawnParticles(e.x, e.y, '#ff6010', 3);
+        e.igniteTick -= 0.3;
+        if (e.hp <= 0) killEnemy(e);
+      }
+      if (e.igniteTimer <= 0) { e.igniteDmg = 0; }
+    }
+  }
+
   // Update bullets
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
+
+    // Boomerang: track distance, reverse when max reached
+    if (b.isBoomerang) {
+      b.boomerangDist = (b.boomerangDist || 0) + Math.hypot(b.vx, b.vy) * dt;
+      if (!b.boomerangReturning && b.boomerangDist >= b.boomerangMax) {
+        b.boomerangReturning = true;
+        b.hit = null; // reset hit set so it can hit enemies again on return
+      }
+      if (b.boomerangReturning) {
+        // Home toward player
+        const ang = Math.atan2(player.y - b.y, player.x - b.x);
+        const spd = Math.hypot(b.vx, b.vy);
+        b.vx = Math.cos(ang) * spd;
+        b.vy = Math.sin(ang) * spd;
+        // If it reaches the player, despawn
+        if (dist(b.x, b.y, player.x, player.y) < 20) {
+          bullets.splice(i, 1); continue;
+        }
+      }
+    }
+
     b.x += b.vx * dt; b.y += b.vy * dt;
     b.life -= dt;
 
@@ -1570,6 +1627,9 @@ function update(dt) {
         bullets.splice(i, 1); continue;
       }
     }
+
+    // Visual-only bullets (melee flash, laser trace) skip all collision
+    if (b.isVisual) continue;
 
     // Obstacle collision
     const hitObs = bulletHitsObstacle(b.x, b.y, b.size);
@@ -1637,6 +1697,12 @@ function update(dt) {
         // Slow on hit: add a slow timer to the enemy
         if (b.slowOnHit > 0) {
           e.slowTimer = Math.max(e.slowTimer || 0, b.slowOnHit);
+        }
+        // Flame: ignite the enemy (damage over time)
+        if (b.isFlame && b.igniteDmg > 0) {
+          e.igniteDmg = Math.max(e.igniteDmg || 0, b.igniteDmg);
+          e.igniteTimer = Math.max(e.igniteTimer || 0, b.igniteDuration);
+          e.igniteTick = 0;
         }
         // Explosive rounds: small AoE on impact
         if (b.explosive > 0) {
@@ -1921,9 +1987,168 @@ function findNearestEnemy(x, y, maxRange) {
 function fireWeapon(type, target) {
   const def = WEAPONS[type];
   const baseAng = Math.atan2(target.y - player.y, target.x - player.x);
-  // Multishot adds extra pellets per shot
+  const dmg = def.damage * player.dmgMult;
+
+  if (def.special === 'laser') {
+    const wSlot = player.weapons.find(w => w.type === type);
+    if (wSlot) {
+      wSlot.heat = (wSlot.heat || 0) + def.heatPerShot;
+      if (wSlot.heat >= def.heatMax) { wSlot.heat = def.heatMax; wSlot.overheated = true; return; }
+    }
+    const RAY_STEPS = 20;
+    const hit = new Set();
+    for (let step = 1; step <= RAY_STEPS; step++) {
+      const rx = player.x + Math.cos(baseAng) * (def.range / RAY_STEPS) * step;
+      const ry = player.y + Math.sin(baseAng) * (def.range / RAY_STEPS) * step;
+      for (const e of enemies) {
+        if (hit.has(e)) continue;
+        if (dist(rx, ry, e.x, e.y) < e.r + 6) {
+          hit.add(e);
+          const isCrit = Math.random() < player.crit;
+          const d = dmg * (isCrit ? (player.critDmg || 2) : 1);
+          e.hp -= d; e.hitFlash = 0.05; damageDealt += d;
+          if (e.hp <= 0) killEnemy(e);
+        }
+      }
+    }
+    bullets.push({ x: player.x, y: player.y, vx: Math.cos(baseAng) * 900, vy: Math.sin(baseAng) * 900,
+      dmg: 0, size: 2, color: '#ff4040', life: def.range / 900,
+      pierce: 99, hit: new Set(), bounce: 0, explosive: 0, knockback: 0, slowOnHit: 0, isVisual: true });
+    return;
+  }
+
+  if (def.special === 'melee_arc') {
+    const halfArc = def.arcAngle / 2;
+    for (const e of enemies) {
+      const d = dist(player.x, player.y, e.x, e.y);
+      if (d > def.arcRange + e.r) continue;
+      const ang = Math.atan2(e.y - player.y, e.x - player.x);
+      let diff = ang - baseAng;
+      while (diff > Math.PI) diff -= TAU; while (diff < -Math.PI) diff += TAU;
+      if (Math.abs(diff) <= halfArc) {
+        const isCrit = Math.random() < player.crit;
+        const d2 = dmg * (isCrit ? (player.critDmg || 2) : 1);
+        e.hp -= d2; e.hitFlash = 0.15; damageDealt += d2;
+        spawnParticles(e.x, e.y, def.color, 8);
+        floatTexts.push({ x: e.x, y: e.y - e.r, text: Math.round(d2), life: 0.6, color: isCrit ? '#ffff40' : def.color, size: isCrit ? 18 : 14, vy: -30 });
+        if (e.hp <= 0) killEnemy(e);
+      }
+    }
+    bullets.push({ x: player.x, y: player.y, vx: Math.cos(baseAng) * 300, vy: Math.sin(baseAng) * 300,
+      dmg: 0, size: def.arcRange * 0.5, color: def.color, life: 0.12,
+      pierce: 99, hit: new Set(), bounce: 0, explosive: 0, knockback: 0, slowOnHit: 0, isVisual: true });
+    return;
+  }
+
+  if (def.special === 'melee_thrust') {
+    for (const e of enemies) {
+      const d = dist(player.x, player.y, e.x, e.y);
+      if (d > def.range + e.r) continue;
+      const ang = Math.atan2(e.y - player.y, e.x - player.x);
+      let diff = ang - baseAng;
+      while (diff > Math.PI) diff -= TAU; while (diff < -Math.PI) diff += TAU;
+      if (Math.abs(diff) <= 0.25) {
+        const isCrit = Math.random() < player.crit;
+        const d2 = dmg * (isCrit ? (player.critDmg || 2) : 1);
+        e.hp -= d2; e.hitFlash = 0.2; damageDealt += d2;
+        const kAng = Math.atan2(e.y - player.y, e.x - player.x);
+        e.x += Math.cos(kAng) * def.thrustKnockback * 0.5;
+        e.y += Math.sin(kAng) * def.thrustKnockback * 0.5;
+        spawnParticles(e.x, e.y, def.color, 6);
+        floatTexts.push({ x: e.x, y: e.y - e.r, text: Math.round(d2), life: 0.6, color: isCrit ? '#ffff40' : def.color, size: isCrit ? 18 : 14, vy: -30 });
+        if (e.hp <= 0) killEnemy(e);
+      }
+    }
+    bullets.push({ x: player.x, y: player.y, vx: Math.cos(baseAng) * 500, vy: Math.sin(baseAng) * 500,
+      dmg: 0, size: 4, color: def.color, life: 0.15,
+      pierce: 99, hit: new Set(), bounce: 0, explosive: 0, knockback: 0, slowOnHit: 0, isVisual: true });
+    return;
+  }
+
+  if (def.special === 'melee_spin') {
+    const wSlot = player.weapons.find(w => w.type === type);
+    const spinAngle = wSlot ? ((wSlot.spinAngle || 0) + 4.0) : 0;
+    if (wSlot) wSlot.spinAngle = spinAngle;
+    const fx = player.x + Math.cos(spinAngle) * def.range;
+    const fy = player.y + Math.sin(spinAngle) * def.range;
+    for (const e of enemies) {
+      if (dist(fx, fy, e.x, e.y) < e.r + 14) {
+        const isCrit = Math.random() < player.crit;
+        const d2 = dmg * (isCrit ? (player.critDmg || 2) : 1);
+        e.hp -= d2; e.hitFlash = 0.1; damageDealt += d2;
+        if (e.hp <= 0) killEnemy(e);
+      }
+    }
+    bullets.push({ x: fx, y: fy, vx: 0, vy: 0,
+      dmg: 0, size: 10, color: def.color, life: 0.22,
+      pierce: 99, hit: new Set(), bounce: 0, explosive: 0, knockback: 0, slowOnHit: 0, isVisual: true });
+    return;
+  }
+
+  if (def.special === 'tesla') {
+    const target0 = findNearestEnemy(player.x, player.y, def.range);
+    if (!target0) return;
+    const chain = [target0]; let last = target0;
+    for (let c = 1; c < def.chainCount; c++) {
+      let best = null, bestDist = def.chainRange;
+      for (const e of enemies) {
+        if (chain.includes(e)) continue;
+        const d = dist(last.x, last.y, e.x, e.y);
+        if (d < bestDist) { best = e; bestDist = d; }
+      }
+      if (!best) break;
+      chain.push(best); last = best;
+    }
+    chain.forEach((e, i) => {
+      const falloff = Math.pow(def.chainDmgFalloff, i);
+      const d2 = dmg * falloff;
+      e.hp -= d2; e.hitFlash = 0.1; damageDealt += d2;
+      spawnParticles(e.x, e.y, def.color, 6);
+      floatTexts.push({ x: e.x, y: e.y - e.r, text: Math.round(d2), life: 0.5, color: def.color, size: 13, vy: -25 });
+      if (e.hp <= 0) killEnemy(e);
+    });
+    return;
+  }
+
+  if (def.special === 'railgun') {
+    bullets.push({ x: player.x, y: player.y,
+      vx: Math.cos(baseAng) * def.speed, vy: Math.sin(baseAng) * def.speed,
+      dmg, size: 7, color: def.color, life: def.range / def.speed,
+      pierce: 99, hit: null, bounce: 0, explosive: 0, knockback: 60, slowOnHit: 0, isRailgun: true });
+    spawnParticles(player.x, player.y, def.color, 20);
+    screenShake = Math.min(14, screenShake + 8);
+    return;
+  }
+
+  if (def.special === 'boomerang') {
+    const spd = def.speed;
+    bullets.push({ x: player.x, y: player.y,
+      vx: Math.cos(baseAng) * spd, vy: Math.sin(baseAng) * spd,
+      dmg, size: def.bulletSize, color: def.color, life: (def.range / spd) * 2,
+      pierce: def.pierce, hit: null, bounce: 0, explosive: 0, knockback: 0, slowOnHit: 0,
+      isBoomerang: true, boomerangDist: 0, boomerangMax: def.range, boomerangReturning: false });
+    return;
+  }
+
+  if (def.special === 'flame') {
+    const totalPellets = def.pellets + (player.multishot || 0);
+    for (let i = 0; i < totalPellets; i++) {
+      const spreadOffset = (i / Math.max(totalPellets - 1, 1) - 0.5) * def.spread + rand(-0.08, 0.08);
+      const ang = baseAng + spreadOffset;
+      const spd = def.speed * (0.7 + Math.random() * 0.6);
+      bullets.push({ x: player.x, y: player.y,
+        vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+        dmg: def.damage * player.dmgMult, size: def.bulletSize + rand(-2, 2),
+        color: Math.random() < 0.5 ? '#ff6010' : '#ff9020',
+        life: (def.range / def.speed) * (0.6 + Math.random() * 0.5),
+        pierce: def.pierce, hit: null, bounce: 0, explosive: 0, knockback: 0, slowOnHit: 0,
+        isFlame: true, igniteDmg: def.igniteDmg, igniteDuration: def.igniteDuration });
+    }
+    return;
+  }
+
+  // Default bullet weapon
   const totalPellets = def.pellets + (player.multishot || 0);
-  // Effective spread scales with extra pellets so the fan stays tight
   const effSpread = def.spread * (totalPellets > 1 ? 1 : 0);
   for (let i = 0; i < totalPellets; i++) {
     const spreadOffset = totalPellets > 1
@@ -1931,8 +2156,7 @@ function fireWeapon(type, target) {
       : rand(-def.spread/2, def.spread/2);
     const ang = baseAng + spreadOffset;
     const spd = def.speed * player.bulletSpdMult;
-    bullets.push({
-      x: player.x, y: player.y,
+    bullets.push({ x: player.x, y: player.y,
       vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
       dmg: def.damage * player.dmgMult,
       size: def.bulletSize, color: def.color,
@@ -1942,8 +2166,7 @@ function fireWeapon(type, target) {
       explosive: (player.explosiveRounds || 0),
       knockback: (player.knockback || 0),
       slowOnHit: (player.slowOnHit || 0),
-      hit: null,
-    });
+      hit: null });
   }
 }
 
@@ -2591,7 +2814,15 @@ function updateHUD() {
   document.getElementById('enemy-count').textContent = enemies.length;
   document.getElementById('coins-text').textContent = player.coins;
   document.getElementById('room-text').textContent = `${currentRoom.x + 1},${currentRoom.y + 1}`;
-  const names = player.weapons.map(w => WEAPONS[w.type].name).join(', ');
+  const names = player.weapons.map(w => {
+    const def = WEAPONS[w.type];
+    if (def.special === 'laser') {
+      const heat = w.heat || 0;
+      const pct = Math.round(heat / def.heatMax * 100);
+      return WEAPONS[w.type].name + (w.overheated ? ' 🔥OVERHEAT' : pct > 50 ? ` (${pct}%🌡️)` : '');
+    }
+    return WEAPONS[w.type].name;
+  }).join(', ');
   document.getElementById('weapons-list').textContent = names;
 
   // Dash cooldown — fill bar shows readiness (full = ready, empty = just used)
@@ -3266,7 +3497,12 @@ function drawEnemy(e) {
   }
 
   const flash = e.hitFlash > 0;
+  const ignited = e.igniteDmg > 0 && e.igniteTimer > 0;
   const baseColor = flash ? '#fff' : e.color;
+  // Fire glow on ignited enemies
+  if (ignited) {
+    ctx.shadowColor = '#ff6010'; ctx.shadowBlur = 12 + Math.sin(Date.now() * 0.01) * 4;
+  }
 
   if (e.type === 'walker') {
     ctx.fillStyle = baseColor;
@@ -3358,6 +3594,7 @@ function drawEnemy(e) {
     ctx.fillStyle = '#e04030';
     ctx.fillRect(-bw/2, -e.r - 8, bw * (e.hp / e.maxHp), bh);
   }
+  ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
   ctx.restore();
 }
 

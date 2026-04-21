@@ -596,6 +596,7 @@ let player = null;
 let enemies = [], bullets = [], enemyBullets = [], pickups = [], particles = [], floatTexts = [];
 let allies = []; // companion pets that follow the player
 let structures = []; // placed trees/turrets anchored to a room
+let puddles = []; // acid puddles left by spitters
 let freezeTimer = 0; // seconds remaining where enemies move slower
 let obstacles = []; // active obstacles for CURRENT room (walls, crates, spikes, chests)
 let worldRooms = []; // 5x5 grid of { obstacles: [...] } where obstacles are in ROOM-LOCAL coords
@@ -815,7 +816,39 @@ const ENEMY_TYPES = {
     baseHp: 2500, speed: 50, r: 55, dmg: 30, xp: 50, coin: 40,
     color: '#a02040', face: 'boss', behavior: 'boss',
     shootCd: 0.9, projSpeed: 260
-  }
+  },
+  // --- New enemies ---
+  dasher: {
+    // Charges up then rockets in a straight line — dodge or die
+    baseHp: 28, speed: 55, r: 15, dmg: 18, xp: 2, coin: 2,
+    color: '#ff4020', face: 'angry', behavior: 'dasher',
+    dashSpeed: 620, chargeTime: 1.4, dashDuration: 0.35, resetTime: 0.8
+  },
+  spitter: {
+    // Lobs acid puddles that linger on the ground
+    baseHp: 20, speed: 45, r: 15, dmg: 6, xp: 2, coin: 2,
+    color: '#60c030', face: 'shifty', behavior: 'spitter',
+    shootCd: 2.2, shootRange: 360, projSpeed: 200,
+    puddleRadius: 30, puddleDmg: 4, puddleDuration: 4.0
+  },
+  shrieker: {
+    // Screams to buff nearby enemies' speed — kill first
+    baseHp: 15, speed: 50, r: 14, dmg: 4, xp: 3, coin: 2,
+    color: '#f0c000', face: 'panic', behavior: 'shrieker',
+    screamCd: 3.0, screamRange: 200, screamBuff: 1.4, screamDuration: 4.0
+  },
+  stalker: {
+    // Invisible until very close — can't be auto-targeted when hidden
+    baseHp: 22, speed: 90, r: 15, dmg: 14, xp: 3, coin: 3,
+    color: '#8040c0', face: 'shifty', behavior: 'stalker',
+    revealRange: 110
+  },
+  bomber: {
+    // Slow walker that explodes when close — grows brighter as it approaches
+    baseHp: 35, speed: 40, r: 18, dmg: 40, xp: 3, coin: 2,
+    color: '#ff8020', face: 'angry', behavior: 'bomber',
+    fuseRange: 80, explosionRadius: 110
+  },
 };
 
 // ---------- Wave composition ----------
@@ -828,7 +861,12 @@ function waveComposition(w) {
   comp.walker = Math.max(0, Math.floor(base * 0.55));
   if (w >= 2) comp.runner = Math.floor(base * 0.45);
   if (w >= 4) comp.brute = Math.max(1, Math.floor(w * 0.18));
-  if (w >= 6) comp.shooter = Math.max(1, Math.floor(w * 0.15));
+  if (w >= 3)  comp.bomber  = Math.max(1, Math.floor(w * 0.08));
+  if (w >= 4)  comp.dasher  = Math.max(1, Math.floor(w * 0.12));
+  if (w >= 5)  comp.shrieker = Math.max(1, Math.floor(w * 0.08));
+  if (w >= 6)  comp.shooter = Math.max(1, Math.floor(w * 0.15));
+  if (w >= 6)  comp.spitter = Math.max(1, Math.floor(w * 0.10));
+  if (w >= 8)  comp.stalker = Math.max(1, Math.floor(w * 0.08));
   if (w >= 10) { comp.walker = Math.floor(comp.walker * 1.2); comp.runner = Math.floor(comp.runner * 1.2); }
   if (w >= 15) { comp.brute = Math.floor(comp.brute * 1.3); comp.runner = Math.floor(comp.runner * 1.25); }
   if (bossWave) comp.boss = 1;
@@ -1213,7 +1251,7 @@ function startGame(diffKey) {
   document.getElementById('menu').classList.remove('active');
   player = makePlayer();
   enemies = []; bullets = []; enemyBullets = []; pickups = []; particles = []; floatTexts = [];
-  allies = []; structures = [];
+  allies = []; structures = []; puddles = [];
   wave = 0;
   totalKills = 0; damageDealt = 0;
   runStartTime = performance.now();
@@ -1751,6 +1789,117 @@ function update(dt) {
         const ang = Math.atan2(player.y - e.y, player.x - e.x);
         enemyBullets.push({ x: e.x, y: e.y, vx: Math.cos(ang) * e.projSpeed, vy: Math.sin(ang) * e.projSpeed, r: 5, dmg: e.dmg * 0.6, life: 3 });
       }
+    } else if (e.behavior === 'dasher') {
+      const d = dist(e.x, e.y, player.x, player.y);
+      e.dashState = e.dashState || 'stalk'; // stalk -> charge -> dash -> reset
+      e.dashTimer = (e.dashTimer || 0) + dt;
+      if (e.dashState === 'stalk') {
+        // Normal slow approach
+        if (d > 0.1) { tx = (player.x - e.x) / d; ty = (player.y - e.y) / d; }
+        if (e.dashTimer >= ENEMY_TYPES.dasher.chargeTime) {
+          // Lock on direction and start charging
+          e.dashState = 'charge';
+          e.dashTimer = 0;
+          e.dashDirX = d > 0.1 ? (player.x - e.x) / d : 1;
+          e.dashDirY = d > 0.1 ? (player.y - e.y) / d : 0;
+          screenShake = Math.min(4, screenShake + 1);
+        }
+      } else if (e.dashState === 'charge') {
+        // Frozen in place, glowing red — telegraphing dash
+        if (e.dashTimer >= 0.4) { e.dashState = 'dash'; e.dashTimer = 0; }
+      } else if (e.dashState === 'dash') {
+        // Rocket in locked direction
+        tx = e.dashDirX; ty = e.dashDirY;
+        e.speed = ENEMY_TYPES.dasher.dashSpeed * (wave > 0 ? 1 : 1);
+        if (e.dashTimer >= ENEMY_TYPES.dasher.dashDuration) {
+          e.dashState = 'reset'; e.dashTimer = 0;
+          e.speed = ENEMY_TYPES.dasher.speed;
+        }
+      } else if (e.dashState === 'reset') {
+        // Slow recovery, then back to stalking
+        if (e.dashTimer >= ENEMY_TYPES.dasher.resetTime) { e.dashState = 'stalk'; e.dashTimer = 0; }
+      }
+
+    } else if (e.behavior === 'spitter') {
+      const d = dist(e.x, e.y, player.x, player.y);
+      const ideal = e.shootRange * 0.7;
+      if (d > ideal + 30)      { tx = (player.x - e.x) / d; ty = (player.y - e.y) / d; }
+      else if (d < ideal - 30) { tx = -(player.x - e.x) / d; ty = -(player.y - e.y) / d; }
+      e.shootTimer = (e.shootTimer || 0) - dt;
+      if (e.shootTimer <= 0 && d < e.shootRange) {
+        e.shootTimer = e.shootCd;
+        // Lob an acid blob (arcing projectile stored as enemyBullet with isPuddle flag)
+        const ang = Math.atan2(player.y - e.y, player.x - e.x) + rand(-0.15, 0.15);
+        enemyBullets.push({
+          x: e.x, y: e.y, vx: Math.cos(ang) * e.projSpeed, vy: Math.sin(ang) * e.projSpeed,
+          r: 7, dmg: e.dmg * 0.4, life: d / e.projSpeed + 0.1,
+          isAcid: true, puddleRadius: ENEMY_TYPES.spitter.puddleRadius,
+          puddleDmg: ENEMY_TYPES.spitter.puddleDmg,
+          puddleDuration: ENEMY_TYPES.spitter.puddleDuration,
+        });
+        spawnParticles(e.x, e.y, '#80d020', 5);
+      }
+
+    } else if (e.behavior === 'shrieker') {
+      // Runs away from player, screams periodically
+      const d = dist(e.x, e.y, player.x, player.y);
+      if (d > 0.1) { tx = -(player.x - e.x) / d; ty = -(player.y - e.y) / d; } // flee
+      e.screamTimer = (e.screamTimer || 0) + dt;
+      if (e.screamTimer >= ENEMY_TYPES.shrieker.screamCd) {
+        e.screamTimer = 0;
+        // Buff all nearby enemies speed
+        for (const e2 of enemies) {
+          if (e2 === e) continue;
+          if (dist(e.x, e.y, e2.x, e2.y) < ENEMY_TYPES.shrieker.screamRange) {
+            e2.shriekBuffTimer = ENEMY_TYPES.shrieker.screamDuration;
+          }
+        }
+        spawnParticles(e.x, e.y, '#f0c000', 20);
+        floatTexts.push({ x: e.x, y: e.y - 20, text: '😱 SHRIEK!', life: 1.0, color: '#f0c000', size: 16, vy: -25 });
+        screenShake = Math.min(6, screenShake + 3);
+      }
+
+    } else if (e.behavior === 'stalker') {
+      const d = dist(e.x, e.y, player.x, player.y);
+      // Invisible until very close; if revealed, chase hard for 2s then re-stealth
+      e.revealTimer = (e.revealTimer || 0);
+      const isRevealed = d < ENEMY_TYPES.stalker.revealRange || e.igniteDmg > 0;
+      if (isRevealed) { e.revealTimer = 1.5; }
+      else { e.revealTimer = Math.max(0, e.revealTimer - dt); }
+      e.isVisible = e.revealTimer > 0 || e.hitFlash > 0;
+      if (d > 0.1) { tx = (player.x - e.x) / d; ty = (player.y - e.y) / d; }
+
+    } else if (e.behavior === 'bomber') {
+      const d = dist(e.x, e.y, player.x, player.y);
+      if (d > 0.1) { tx = (player.x - e.x) / d; ty = (player.y - e.y) / d; }
+      // Explode when close enough
+      if (d < ENEMY_TYPES.bomber.fuseRange + e.r && !e.detonating) {
+        e.detonating = true;
+        e.detonateTimer = 3.0; // 3 second fuse — long enough to react and run
+      }
+      if (e.detonating) {
+        e.detonateTimer -= dt;
+        if (e.detonateTimer <= 0) {          // BOOM
+          const radius = ENEMY_TYPES.bomber.explosionRadius;
+          spawnParticles(e.x, e.y, '#ff8020', 40);
+          spawnParticles(e.x, e.y, '#ffffff', 20);
+          screenShake = Math.min(14, screenShake + 10);
+          floatTexts.push({ x: e.x, y: e.y - 10, text: '💥 BOOM!', life: 1.5, color: '#ff8020', size: 22, vy: -20 });
+          if (dist(player.x, player.y, e.x, e.y) < radius + player.r) {
+            damagePlayer(e.dmg, e);
+          }
+          // Also damages nearby enemies (friendly fire chaos)
+          for (const e2 of enemies) {
+            if (e2 === e) continue;
+            if (dist(e.x, e.y, e2.x, e2.y) < radius) {
+              e2.hp -= e.dmg * 0.5;
+              if (e2.hp <= 0) killEnemy(e2);
+            }
+          }
+          e.hp = 0; killEnemy(e);
+        }
+      }
+
     } else if (e.behavior === 'boss') {
       const d = dist(e.x, e.y, player.x, player.y);
       if (d > 200) { tx = (player.x - e.x) / d; ty = (player.y - e.y) / d; }
@@ -1773,9 +1922,11 @@ function update(dt) {
     // Freeze effect: enemies move at 40% speed while freezeTimer > 0
     // Slow on hit (Frost Bullets): enemy-specific slow that ticks down
     if (e.slowTimer > 0) e.slowTimer -= dt;
+    if (e.shriekBuffTimer > 0) e.shriekBuffTimer -= dt;
     let speedFactor = 1;
     if (freezeTimer > 0) speedFactor *= 0.4;
     if (e.slowTimer > 0) speedFactor *= 0.5;
+    if (e.shriekBuffTimer > 0) speedFactor *= ENEMY_TYPES.shrieker.screamBuff;
     const sx = e.x + tx * e.speed * speedFactor * dt;
     const sy = e.y + ty * e.speed * speedFactor * dt;
     const resolved = collideCircleWithObstacles(sx, sy, e.r);
@@ -1807,15 +1958,36 @@ function update(dt) {
     const b = enemyBullets[i];
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
     if (b.life <= 0 || b.x < 0 || b.x > WORLD_W || b.y < 0 || b.y > WORLD_H) {
+      // Acid blob: spawn puddle when life expires or hits wall
+      if (b.isAcid) {
+        puddles.push({ x: b.x, y: b.y, r: b.puddleRadius, dmg: b.puddleDmg, life: b.puddleDuration, maxLife: b.puddleDuration });
+        spawnParticles(b.x, b.y, '#80d020', 12);
+      }
       enemyBullets.splice(i, 1); continue;
     }
     if (bulletHitsObstacle(b.x, b.y, b.r)) {
-      spawnParticles(b.x, b.y, '#888', 3);
+      if (b.isAcid) puddles.push({ x: b.x, y: b.y, r: b.puddleRadius, dmg: b.puddleDmg, life: b.puddleDuration, maxLife: b.puddleDuration });
+      spawnParticles(b.x, b.y, b.isAcid ? '#80d020' : '#888', 4);
       enemyBullets.splice(i, 1); continue;
     }
     if (player.iframe <= 0 && dist(b.x, b.y, player.x, player.y) < player.r + b.r) {
       damagePlayer(b.dmg);
+      if (b.isAcid) puddles.push({ x: b.x, y: b.y, r: b.puddleRadius, dmg: b.puddleDmg, life: b.puddleDuration, maxLife: b.puddleDuration });
       enemyBullets.splice(i, 1);
+    }
+  }
+
+  // Puddles — linger on ground, damage player and slow if walked through
+  for (let i = puddles.length - 1; i >= 0; i--) {
+    const p = puddles[i];
+    p.life -= dt;
+    if (p.life <= 0) { puddles.splice(i, 1); continue; }
+    if (player.iframe <= 0 && dist(player.x, player.y, p.x, p.y) < p.r + player.r) {
+      player.spikeDamageAccum = (player.spikeDamageAccum || 0) + p.dmg * dt;
+      if (player.spikeDamageAccum >= 5) {
+        damagePlayer(Math.floor(player.spikeDamageAccum));
+        player.spikeDamageAccum = 0;
+      }
     }
   }
 
@@ -1978,6 +2150,8 @@ function update(dt) {
 function findNearestEnemy(x, y, maxRange) {
   let best = null, bestD = maxRange;
   for (const e of enemies) {
+    // Invisible stalkers can't be auto-targeted
+    if (e.type === 'stalker' && !e.isVisible) continue;
     const d = dist(x, y, e.x, e.y);
     if (d < bestD) { bestD = d; best = e; }
   }
@@ -2939,6 +3113,18 @@ function render() {
     }
   }
 
+  // Acid puddles
+  for (const p of puddles) {
+    const alpha = 0.3 + 0.4 * (p.life / p.maxLife);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#60c020';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r * 0.5, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = alpha * 0.6;
+    ctx.fillStyle = '#a0ff40';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r * 0.5, p.r * 0.25, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
   // Structures (drawn before enemies so enemies visually appear on top)
   for (const s of structures) drawStructure(s);
 
@@ -3555,6 +3741,109 @@ function drawEnemy(e) {
     ctx.closePath();
     ctx.fill(); ctx.stroke();
     drawEnemyFace('shifty', 0, 4);
+  } else if (e.type === 'dasher') {
+    const charging = e.dashState === 'charge';
+    const dashing = e.dashState === 'dash';
+    const glowAmt = charging ? (1 + Math.sin(Date.now() * 0.02) * 0.4) : (dashing ? 1.5 : 0);
+    if (charging || dashing) { ctx.shadowColor = '#ff2000'; ctx.shadowBlur = 12 * glowAmt; }
+    ctx.fillStyle = charging ? '#ff2000' : (dashing ? '#ff6040' : baseColor);
+    ctx.strokeStyle = '#300000'; ctx.lineWidth = 2;
+    // Arrow-shaped body pointing toward player
+    const ang = Math.atan2(player.y - e.y, player.x - e.x);
+    ctx.save(); ctx.rotate(ang);
+    ctx.beginPath();
+    ctx.moveTo(e.r, 0);
+    ctx.lineTo(-e.r * 0.8, -e.r * 0.7);
+    ctx.lineTo(-e.r * 0.4, 0);
+    ctx.lineTo(-e.r * 0.8, e.r * 0.7);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    drawEnemyFace('angry');
+
+  } else if (e.type === 'spitter') {
+    ctx.fillStyle = baseColor;
+    ctx.strokeStyle = '#203010'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, e.r, 0, TAU); ctx.fill(); ctx.stroke();
+    // Acid drip spots
+    ctx.fillStyle = '#a0ff40';
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * TAU;
+      ctx.beginPath(); ctx.arc(Math.cos(a) * e.r * 0.6, Math.sin(a) * e.r * 0.6, 3, 0, TAU); ctx.fill();
+    }
+    drawEnemyFace('shifty');
+
+  } else if (e.type === 'shrieker') {
+    ctx.fillStyle = baseColor;
+    ctx.strokeStyle = '#302000'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, e.r, 0, TAU); ctx.fill(); ctx.stroke();
+    // Screaming mouth
+    ctx.fillStyle = '#2a1a00';
+    ctx.beginPath(); ctx.ellipse(0, 5, 5, 7, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#ff8040'; ctx.beginPath(); ctx.arc(0, 5, 3, 0, TAU); ctx.fill();
+    // Eyes — wide and scared
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(-5, -3, 3, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(5, -3, 3, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(-5, -3, 1.5, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(5, -3, 1.5, 0, TAU); ctx.fill();
+    // Scream rings if screaming
+    if (e.screamTimer < 0.3) {
+      ctx.globalAlpha = 0.3;
+      ctx.strokeStyle = '#f0c000'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 0, e.r * 2 * (1 - e.screamTimer / 0.3), 0, TAU); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+  } else if (e.type === 'stalker') {
+    // Only visible when revealed
+    const visAlpha = e.isVisible ? 1 : 0.08;
+    ctx.globalAlpha = visAlpha;
+    ctx.fillStyle = baseColor;
+    ctx.strokeStyle = '#100020'; ctx.lineWidth = 2;
+    // Sleek, thin shape
+    ctx.beginPath();
+    ctx.ellipse(0, 0, e.r * 0.6, e.r, 0, 0, TAU);
+    ctx.fill(); ctx.stroke();
+    if (e.isVisible) {
+      ctx.fillStyle = '#cc80ff';
+      ctx.beginPath(); ctx.arc(-4, -3, 3, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(4, -3, 3, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.arc(-4, -3, 1.5, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(4, -3, 1.5, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+  } else if (e.type === 'bomber') {
+    const dPlayer = dist(0, 0, player.x - e.x, player.y - e.y);
+    const fuseRatio = Math.max(0, 1 - dPlayer / ENEMY_TYPES.bomber.fuseRange);
+    const isLit = e.detonating;
+    // Pulse speed increases as timer counts down
+    const pulseSpeed = isLit ? (0.03 + (1 - e.detonateTimer / 3.0) * 0.08) : 0.01;
+    const pulse = Math.sin(Date.now() * pulseSpeed) * 0.5 + 0.5;
+    const glowCol = isLit ? '#ff2000' : (fuseRatio > 0.5 ? '#ff4000' : '#ff8020');
+    ctx.shadowColor = glowCol;
+    ctx.shadowBlur = isLit ? (8 + pulse * 24) : (fuseRatio > 0.1 ? 8 + fuseRatio * 12 : 4);
+    ctx.fillStyle = isLit
+      ? (pulse > 0.5 ? '#ff2000' : '#ff6040')
+      : (fuseRatio > 0.5 ? '#ff4000' : (fuseRatio > 0.2 ? '#ff8020' : baseColor));
+    ctx.strokeStyle = '#300000'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, e.r * (1 + (isLit ? pulse * 0.15 : fuseRatio * 0.3)), 0, TAU); ctx.fill(); ctx.stroke();
+    // Fuse spark on top
+    ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, -e.r); ctx.lineTo(rand(-3,3), -e.r - 8); ctx.stroke();
+    ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(rand(-2,2), -e.r - 8, 2.5, 0, TAU); ctx.fill();
+    // Countdown number when fuse is lit
+    if (isLit) {
+      const secsLeft = Math.ceil(e.detonateTimer);
+      ctx.fillStyle = secsLeft <= 1 ? '#ff2000' : '#ffffff';
+      ctx.font = `bold ${14 + (3 - secsLeft) * 4}px Courier New`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(secsLeft, 0, 0);
+    }
+    drawEnemyFace('angry');
+
   } else if (e.type === 'boss') {
     ctx.fillStyle = baseColor;
     ctx.strokeStyle = '#200010'; ctx.lineWidth = 4;

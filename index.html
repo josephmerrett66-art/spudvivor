@@ -300,6 +300,12 @@
       <div id="carried-row" style="margin-top:6px; font-size:11px; text-align:right; opacity:0.85; display:none">
         <span style="opacity:0.7">P:</span> <span id="carried-structures"></span>
       </div>
+      <!-- P2 HUD (shown only in multiplayer) -->
+      <div id="p2-hud" style="display:none; margin-top:8px; padding-top:6px; border-top:1px solid #4a3028">
+        <div style="font-size:11px; color:#80c0ff">🔵 P2 HP <b id="p2-hp-text">100/100</b></div>
+        <div class="bar" style="margin-top:3px"><div class="bar-fill" id="p2-hp-bar" style="width:100%; background:linear-gradient(90deg,#3060a0,#60a0e0)"></div></div>
+        <div style="font-size:10px; color:#80c0ff; margin-top:3px" id="p2-weapons-list"></div>
+      </div>
     </div>
   </div>
 
@@ -332,6 +338,13 @@
       <p style="text-align:center">Survive endless waves across 25 rooms. Move with <b>WASD</b>. Dash with <b>SPACE</b>. Use consumables with <b>1/2/3</b>. Place structures with <b>P</b>. Toggle music with <b>M</b>. You auto-fire at the nearest enemy. Clear every enemy to unlock a new room.</p>
       <h2 style="margin-top:18px; color:#f4c47a">CHOOSE YOUR RUN</h2>
       <div id="difficulty-picker" style="display:flex; flex-direction:column; gap:8px; margin-top:12px"></div>
+      <div style="margin-top:12px; padding:10px; background:#1a0e14; border-radius:6px; border:1px solid #6a4028; text-align:center">
+        <label style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; font-size:14px">
+          <input type="checkbox" id="mp-toggle" style="width:18px; height:18px; cursor:pointer" onchange="multiplayerEnabled = this.checked">
+          <span>👥 2-Player Mode (same keyboard)</span>
+        </label>
+        <div style="font-size:10px; opacity:0.6; margin-top:4px">P1: WASD + SPACE | P2: Arrows + SHIFT + [ ] \</div>
+      </div>
       <div style="text-align:center; margin-top:10px">
         <button class="btn" onclick="openCodex()" style="opacity:0.8; font-size:13px">📖 Codex — Weapons, Enemies & Items</button>
       </div>
@@ -384,8 +397,13 @@
       <h1>🛒 SHOP</h1>
       <div class="stats-row">
         <span>Wave <b id="shop-wave">1</b> cleared</span>
-        <span>💰 <b id="shop-coins">0</b></span>
+        <span>💰 P1: <b id="shop-coins">0</b></span>
+        <span id="shop-p2-coins-wrap" style="display:none">💰 P2: <b id="shop-p2-coins">0</b></span>
         <span>Purchases <b id="shop-purchases">0 / 3</b></span>
+      </div>
+      <div id="shop-player-toggle" style="display:none; text-align:center; margin:8px 0; gap:8px; flex-direction:row; justify-content:center">
+        <button class="btn" id="shop-p1-btn" onclick="setShopPlayer(1)" style="background:#8b5a3c">🟠 P1 Shopping</button>
+        <button class="btn" id="shop-p2-btn" onclick="setShopPlayer(2)">🔵 P2 Shopping</button>
       </div>
       <div style="margin-top:10px; padding:10px; background:#1a0e14; border-radius:4px; border:1px solid #6a4028">
         <div style="font-size:12px; color:#d0b890; margin-bottom:6px;">🔫 YOUR GUN RACK <span style="opacity:0.5; font-size:10px">— click to sell for half price</span></div>
@@ -494,22 +512,39 @@ resizeCanvas();
 const keys = {};
 window.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
-  // Consumable hotkeys: 1, 2, 3 — trigger on keydown edge only, not held
+  // P1 Consumable hotkeys: 1, 2, 3
   if ((k === '1' || k === '2' || k === '3') && state === 'playing' && player) {
     const slotIdx = parseInt(k) - 1;
-    if (!keys[k]) useConsumable(slotIdx);
+    if (!keys[k]) useConsumableFor(player, slotIdx);
   }
-  // P: place the next carried structure at player position
+  // P1 place structure
   if (k === 'p' && state === 'playing' && player && !keys[k]) {
     if (player.carriedStructures.length > 0) {
       const s = player.carriedStructures.shift();
       placeStructure(s.type, player.x, player.y);
     }
   }
+  // P2 consumable hotkeys: [ ] \
+  if (state === 'playing' && player2 && !player2.dead) {
+    if (e.key === '[' && !keys[e.key]) useConsumableFor(player2, 0);
+    if (e.key === ']' && !keys[e.key]) useConsumableFor(player2, 1);
+    if (e.key === '\\' && !keys[e.key]) useConsumableFor(player2, 2);
+    // P2 place structure: '
+    if (e.key === "'" && !keys[e.key]) {
+      if (player2.carriedStructures.length > 0) {
+        const s = player2.carriedStructures.shift();
+        placeStructure(s.type, player2.x, player2.y);
+      }
+    }
+  }
+  keys[e.key] = true; // store original case for P2 special chars
   keys[k] = true;
-  if (['arrowup','arrowdown','arrowleft','arrowright',' ','e','1','2','3','p'].includes(k)) e.preventDefault();
+  if (['arrowup','arrowdown','arrowleft','arrowright',' ','shift','1','2','3','p'].includes(k)) e.preventDefault();
 });
-window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+window.addEventListener('keyup', e => {
+  keys[e.key] = false;
+  keys[e.key.toLowerCase()] = false;
+});
 
 // ---------- Touch / Virtual Joystick ----------
 // Sets touchDx/touchDy in range [-1, 1] to feed into movement. Also tracks
@@ -614,6 +649,8 @@ if (IS_MOBILE) {
 // ---------- Game state ----------
 let state = 'menu';
 let player = null;
+let player2 = null;
+let multiplayerEnabled = false;
 let enemies = [], bullets = [], enemyBullets = [], pickups = [], particles = [], floatTexts = [];
 let allies = []; // companion pets that follow the player
 let structures = []; // placed trees/turrets anchored to a room
@@ -766,17 +803,17 @@ const CONSUMABLES = {
 };
 
 // ---------- Player ----------
-function makePlayer() {
+function makePlayer(offsetX = 0, offsetY = 0) {
   // Start in center of center room (2,2) in world coords
-  const cx = 2 * ROOM_W + ROOM_W / 2;
-  const cy = 2 * ROOM_H + ROOM_H / 2;
+  const cx = 2 * ROOM_W + ROOM_W / 2 + offsetX;
+  const cy = 2 * ROOM_H + ROOM_H / 2 + offsetY;
   return {
     x: cx, y: cy, r: 20,
     hp: 100, maxHp: 100,
     baseSpeed: 200,
     spdMult: 1, dmgMult: 1, atkSpdMult: 1, bulletSpdMult: 1,
     crit: 0.02, armor: 0, regen: 0, lifesteal: 0,
-    critDmg: 2.0, // crit multiplier, upgradeable
+    critDmg: 2.0,
     pickupRange: 70,
     xp: 0, xpToNext: 10, level: 1,
     xpMult: 1, coinMult: 1,
@@ -787,30 +824,18 @@ function makePlayer() {
     iframe: 0,
     regenAccum: 0,
     spikeDamageAccum: 0,
-    // Dash state
     dashCd: 0, dashMax: 2.0, dashTime: 0,
-    dashCharges: 1,       // number of dash charges you can store
-    dashChargesAvail: 1,  // currently available
+    dashCharges: 1, dashChargesAvail: 1,
     lastDirX: 0, lastDirY: -1,
-    // Consumables — 3 slots, each null or { type, name, emoji }
     consumables: [null, null, null],
     carriedStructures: [],
-    // New mechanic stats
-    bulletPierce: 0,        // extra piercing bullets can do
-    bulletBounce: 0,        // number of times bullets bounce off walls
-    explosiveRounds: 0,     // 0 = off, 1+ = small AoE on bullet hit
-    multishot: 0,           // extra pellets fired per shot
-    knockback: 0,           // pixels of push per hit
-    thorns: 0,              // damage reflected when hit
-    dodgeChance: 0,         // 0-1 chance to avoid damage
-    slowOnHit: 0,           // seconds of slow applied to enemies on hit
-    secondChance: false,    // one-time full heal on death
-    secondChanceUsed: false,
-    shield: 0,              // current shield HP
-    shieldMax: 0,           // max shield HP (>0 enables shield system)
-    shieldRegenTimer: 0,
-    shopDiscount: 0,        // 0-1 percent off
-    rerollDiscount: 0,      // 0-1 percent off reroll cost
+    bulletPierce: 0, bulletBounce: 0, explosiveRounds: 0,
+    multishot: 0, knockback: 0, thorns: 0,
+    dodgeChance: 0, slowOnHit: 0,
+    secondChance: false, secondChanceUsed: false,
+    shield: 0, shieldMax: 0, shieldRegenTimer: 0,
+    shopDiscount: 0, rerollDiscount: 0,
+    dead: false, // spectating until next wave
   };
 }
 
@@ -1270,7 +1295,8 @@ function startGame(diffKey) {
   // Start music on user gesture (browsers require it)
   if (musicAudio && musicEnabled && musicAudio.paused) playMusic();
   document.getElementById('menu').classList.remove('active');
-  player = makePlayer();
+  player = makePlayer(-30, 0);
+  player2 = multiplayerEnabled ? makePlayer(30, 0) : null;
   enemies = []; bullets = []; enemyBullets = []; pickups = []; particles = []; floatTexts = [];
   allies = []; structures = []; puddles = [];
   wave = 0;
@@ -1340,6 +1366,15 @@ function restartGame() {
 function startNextWave() {
   document.getElementById('shop').classList.remove('active');
   wave++;
+  // Respawn dead P2 at wave start
+  if (player2 && player2.dead) {
+    player2.dead = false;
+    player2.hp = player2.maxHp;
+    player2.x = player.x + 40;
+    player2.y = player.y;
+    player2.iframe = 1.0;
+    floatTexts.push({ x: player2.x, y: player2.y - 30, text: '🔵 P2 RESPAWNED', life: 2.0, color: '#80c0ff', size: 16, vy: -20 });
+  }
   const comp = waveComposition(wave);
 
   // Per-room counts from waveComposition(); total = perRoom * sqrt(rooms) * 1.3
@@ -1476,10 +1511,10 @@ function loop(t) {
 function update(dt) {
   // Player movement
   let dx = 0, dy = 0;
-  if (keys['w'] || keys['arrowup']) dy -= 1;
-  if (keys['s'] || keys['arrowdown']) dy += 1;
-  if (keys['a'] || keys['arrowleft']) dx -= 1;
-  if (keys['d'] || keys['arrowright']) dx += 1;
+  if (keys['w'] || (!multiplayerEnabled && keys['arrowup'])) dy -= 1;
+  if (keys['s'] || (!multiplayerEnabled && keys['arrowdown'])) dy += 1;
+  if (keys['a'] || (!multiplayerEnabled && keys['arrowleft'])) dx -= 1;
+  if (keys['d'] || (!multiplayerEnabled && keys['arrowright'])) dx += 1;
   // On mobile, let virtual joystick override keyboard input when active
   if (IS_MOBILE && (touchDx !== 0 || touchDy !== 0)) {
     dx = touchDx; dy = touchDy;
@@ -1624,6 +1659,100 @@ function update(dt) {
         if (w.heat <= 0) { w.heat = 0; w.overheated = false; }
       } else {
         w.heat = Math.max(0, (w.heat || 0) - def.heatCoolRate * dt * 0.3);
+      }
+    }
+  }
+
+  // ---- Player 2 update ----
+  if (player2 && !player2.dead) {
+    // P2 movement: arrow keys + shift dash
+    let dx2 = 0, dy2 = 0;
+    if (keys['arrowup'])    dy2 -= 1;
+    if (keys['arrowdown'])  dy2 += 1;
+    if (keys['arrowleft'])  dx2 -= 1;
+    if (keys['arrowright']) dx2 += 1;
+    if (dx2 || dy2) {
+      const len = Math.hypot(dx2, dy2);
+      dx2 /= len; dy2 /= len;
+      player2.lastDirX = dx2; player2.lastDirY = dy2;
+    }
+    // P2 dash: Shift key
+    player2.dashCd = Math.max(0, player2.dashCd - dt);
+    player2.dashTime = Math.max(0, player2.dashTime - dt);
+    if (player2.dashCd <= 0 && player2.dashChargesAvail < player2.dashCharges) {
+      player2.dashChargesAvail++;
+      if (player2.dashChargesAvail < player2.dashCharges) player2.dashCd = player2.dashMax;
+    }
+    if (keys['shift'] && player2.dashChargesAvail > 0 && player2.dashTime <= 0) {
+      player2.dashTime = 0.18;
+      player2.dashChargesAvail--;
+      if (player2.dashCd <= 0) player2.dashCd = player2.dashMax;
+      player2.iframe = Math.max(player2.iframe, 0.25);
+      spawnParticles(player2.x, player2.y, '#70e0ff', 12);
+    }
+    // P2 movement with sub-stepping
+    let spd2 = player2.baseSpeed * player2.spdMult;
+    let moveDx2 = dx2, moveDy2 = dy2;
+    if (player2.dashTime > 0) {
+      spd2 = 1100;
+      if (!dx2 && !dy2) { moveDx2 = player2.lastDirX; moveDy2 = player2.lastDirY; }
+    }
+    const totalDist2 = spd2 * dt;
+    const steps2 = Math.max(1, Math.ceil(totalDist2 / 10));
+    const stepDt2 = dt / steps2;
+    for (let s = 0; s < steps2; s++) {
+      let nx2 = player2.x + moveDx2 * spd2 * stepDt2;
+      let ny2 = player2.y + moveDy2 * spd2 * stepDt2;
+      nx2 = clamp(nx2, player2.r, WORLD_W - player2.r);
+      ny2 = clamp(ny2, player2.r, WORLD_H - player2.r);
+      const after2 = collideCircleWithObstacles(nx2, ny2, player2.r);
+      player2.x = clamp(after2.x, player2.r, WORLD_W - player2.r);
+      player2.y = clamp(after2.y, player2.r, WORLD_H - player2.r);
+    }
+    // P2 iframe + flash decay
+    player2.iframe = Math.max(0, player2.iframe - dt);
+    player2.hitFlash = Math.max(0, player2.hitFlash - dt);
+    player2.faceTimer = Math.max(0, player2.faceTimer - dt);
+    if (player2.faceTimer <= 0) player2.faceState = 'idle';
+    // P2 regen
+    if (player2.regen > 0 && player2.hp < player2.maxHp) {
+      player2.regenAccum += player2.regen * dt;
+      while (player2.regenAccum >= 1) { player2.hp = Math.min(player2.maxHp, player2.hp + 1); player2.regenAccum -= 1; }
+    }
+    // P2 shield regen
+    if (player2.shieldMax > 0) {
+      if (player2.shieldRegenTimer > 0) player2.shieldRegenTimer -= dt;
+      else if (player2.shield < player2.shieldMax) player2.shield = Math.min(player2.shieldMax, player2.shield + 4 * dt);
+    }
+    // P2 weapon firing — temporarily swap player to player2 so fireWeapon works
+    const _p1 = player;
+    player = player2;
+    for (const wep of player2.weapons) {
+      wep.cd -= dt;
+      const def = WEAPONS[wep.type];
+      if (wep.cd <= 0) {
+        const target = findNearestEnemy(player2.x, player2.y, def.range);
+        if (target) {
+          wep.cd = def.cooldown / player2.atkSpdMult;
+          fireWeapon(wep.type, target);
+          player2.muzzleFlash = 0.08;
+          player2.faceState = 'firing';
+          player2.faceTimer = 0.15;
+        } else { wep.cd = 0; }
+      }
+    }
+    player = _p1;
+    // P2 enemy contact damage
+    for (const e of enemies) {
+      if (player2.iframe <= 0 && dist(e.x, e.y, player2.x, player2.y) < e.r + player2.r) {
+        damagePlayerTarget(player2, e.dmg, e);
+      }
+    }
+    // P2 enemy bullet damage
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+      const b = enemyBullets[i];
+      if (player2.iframe <= 0 && dist(b.x, b.y, player2.x, player2.y) < player2.r + b.r) {
+        damagePlayerTarget(player2, b.dmg, null);
       }
     }
   }
@@ -2010,26 +2139,48 @@ function update(dt) {
     }
   }
 
-  // Pickups
+  // Pickups — both players can collect; nearest player gets priority
   for (let i = pickups.length - 1; i >= 0; i--) {
-    const p = pickups[i];
-    p.life -= dt;
-    const d = dist(p.x, p.y, player.x, player.y);
-    // Magnet flag: pull from ANY distance at max speed
-    if (p.magnetized) {
+    const pk = pickups[i];
+    pk.life -= dt;
+    if (pk.life <= 0) { pickups.splice(i, 1); continue; }
+
+    // Determine which player to pull toward (nearest, or P1 if solo)
+    let pullTarget = player;
+    if (player2 && !player2.dead) {
+      const d1 = dist(pk.x, pk.y, player.x, player.y);
+      const d2 = dist(pk.x, pk.y, player2.x, player2.y);
+      if (d2 < d1) pullTarget = player2;
+    }
+
+    const d = dist(pk.x, pk.y, pullTarget.x, pullTarget.y);
+    if (pk.magnetized) {
       const pull = 1200;
-      p.x += ((player.x - p.x) / (d || 1)) * pull * dt;
-      p.y += ((player.y - p.y) / (d || 1)) * pull * dt;
-    } else if (d < player.pickupRange) {
-      const pull = 320 + (player.pickupRange - d) * 4;
-      p.x += ((player.x - p.x) / d) * pull * dt;
-      p.y += ((player.y - p.y) / d) * pull * dt;
+      pk.x += ((pullTarget.x - pk.x) / (d || 1)) * pull * dt;
+      pk.y += ((pullTarget.y - pk.y) / (d || 1)) * pull * dt;
+    } else if (d < pullTarget.pickupRange) {
+      const pull = 320 + (pullTarget.pickupRange - d) * 4;
+      pk.x += ((pullTarget.x - pk.x) / d) * pull * dt;
+      pk.y += ((pullTarget.y - pk.y) / d) * pull * dt;
     }
-    if (d < player.r + 6) {
-      if (p.type === 'xp') gainXp(p.value);
-      else if (p.type === 'coin') { player.coins += p.value; floatTexts.push({ x: p.x, y: p.y, text: '+' + p.value + '💰', life: 0.8, color: '#f0d060', size: 12, vy: -30 }); }
-      pickups.splice(i, 1);
+
+    // Check collection by either player
+    let collected = false;
+    for (const p of [player, player2 && !player2.dead ? player2 : null].filter(Boolean)) {
+      if (dist(pk.x, pk.y, p.x, p.y) < p.r + 6) {
+        if (pk.type === 'xp') {
+          // Both players get XP (shared experience)
+          gainXpFor(player, pk.value);
+          if (player2 && !player2.dead) gainXpFor(player2, pk.value);
+        } else if (pk.type === 'coin') {
+          p.coins += pk.value;
+          floatTexts.push({ x: pk.x, y: pk.y, text: '+' + pk.value + '💰', life: 0.8, color: '#f0d060', size: 12, vy: -30 });
+        }
+        collected = true;
+        break;
+      }
     }
+    if (collected) pickups.splice(i, 1);
   }
 
   // Particles
@@ -2363,53 +2514,54 @@ function fireWeapon(type, target) {
   }
 }
 
-function damagePlayer(amount, attacker) {
-  // Dodge: skip damage entirely
-  if (player.dodgeChance > 0 && Math.random() < player.dodgeChance) {
-    floatTexts.push({ x: player.x, y: player.y - player.r - 6, text: 'DODGE', life: 0.6, color: '#70e0a0', size: 13, vy: -40 });
-    player.iframe = 0.15;
-    return;
+function damagePlayerTarget(p, amount, attacker) {
+  if (p.dodgeChance > 0 && Math.random() < p.dodgeChance) {
+    floatTexts.push({ x: p.x, y: p.y - p.r - 6, text: 'DODGE', life: 0.6, color: '#70e0a0', size: 13, vy: -40 });
+    p.iframe = 0.15; return;
   }
-  let actual = Math.max(1, amount - player.armor);
-  // Shield absorbs first
-  if (player.shield > 0) {
-    const absorbed = Math.min(player.shield, actual);
-    player.shield -= absorbed;
-    actual -= absorbed;
-    floatTexts.push({ x: player.x, y: player.y - player.r - 6, text: '-' + Math.round(absorbed) + ' SHIELD', life: 0.6, color: '#70c0ff', size: 12, vy: -35 });
-    player.shieldRegenTimer = 4; // delay before shield starts recharging
-    if (actual <= 0) { player.iframe = 0.3; return; }
+  let actual = Math.max(1, amount - p.armor);
+  if (p.shield > 0) {
+    const absorbed = Math.min(p.shield, actual);
+    p.shield -= absorbed; actual -= absorbed;
+    floatTexts.push({ x: p.x, y: p.y - p.r - 6, text: '-' + Math.round(absorbed) + ' SHIELD', life: 0.6, color: '#70c0ff', size: 12, vy: -35 });
+    p.shieldRegenTimer = 4;
+    if (actual <= 0) { p.iframe = 0.3; return; }
   }
-  player.hp -= actual;
-  player.iframe = 0.4;
-  player.hitFlash = 0.2;
-  player.faceState = 'hurt';
-  player.faceTimer = 0.3;
+  p.hp -= actual;
+  p.iframe = 0.4; p.hitFlash = 0.2;
+  p.faceState = 'hurt'; p.faceTimer = 0.3;
   screenShake = Math.min(12, screenShake + 6);
-  floatTexts.push({ x: player.x, y: player.y - player.r - 6, text: '-' + Math.round(actual), life: 0.7, color: '#ff5040', size: 14, vy: -40 });
-  spawnParticles(player.x, player.y, '#ff4040', 8);
-  // Thorns: reflect damage to attacker
-  if (player.thorns > 0 && attacker && attacker.hp > 0) {
-    attacker.hp -= player.thorns;
-    attacker.hitFlash = 0.1;
-    floatTexts.push({ x: attacker.x, y: attacker.y - attacker.r, text: '🌵 ' + player.thorns, life: 0.5, color: '#70e080', size: 12, vy: -25 });
+  floatTexts.push({ x: p.x, y: p.y - p.r - 6, text: '-' + Math.round(actual), life: 0.7, color: '#ff5040', size: 14, vy: -40 });
+  spawnParticles(p.x, p.y, '#ff4040', 8);
+  if (p.thorns > 0 && attacker && attacker.hp > 0) {
+    attacker.hp -= p.thorns; attacker.hitFlash = 0.1;
+    floatTexts.push({ x: attacker.x, y: attacker.y - attacker.r, text: '🌵 ' + p.thorns, life: 0.5, color: '#70e080', size: 12, vy: -25 });
     if (attacker.hp <= 0) killEnemy(attacker);
   }
-  if (player.hp <= 0) {
-    // Second Chance: revive at 50% HP once
-    if (player.secondChance && !player.secondChanceUsed) {
-      player.secondChanceUsed = true;
-      player.hp = Math.floor(player.maxHp * 0.5);
-      player.iframe = 2.0;
-      floatTexts.push({ x: player.x, y: player.y - 20, text: '✨ SECOND CHANCE!', life: 3.0, color: '#ffe040', size: 20, vy: -15 });
-      spawnParticles(player.x, player.y, '#ffe040', 40);
-      screenShake = 10;
-      return;
+  if (p.hp <= 0) {
+    if (p.secondChance && !p.secondChanceUsed) {
+      p.secondChanceUsed = true; p.hp = Math.floor(p.maxHp * 0.5); p.iframe = 2.0;
+      floatTexts.push({ x: p.x, y: p.y - 20, text: '✨ SECOND CHANCE!', life: 3.0, color: '#ffe040', size: 20, vy: -15 });
+      spawnParticles(p.x, p.y, '#ffe040', 40); screenShake = 10; return;
     }
-    player.hp = 0;
-    gameOver();
+    p.hp = 0;
+    if (p === player) {
+      // P1 death — only game over if P2 is also dead or not playing
+      if (!player2 || player2.dead) { gameOver(); }
+      else {
+        p.dead = true;
+        floatTexts.push({ x: p.x, y: p.y - 20, text: '💀 P1 DOWN — spectating', life: 3.0, color: '#ff4040', size: 16, vy: -15 });
+      }
+    } else {
+      // P2 death — spectate until next wave
+      p.dead = true;
+      floatTexts.push({ x: p.x, y: p.y - 20, text: '💀 P2 DOWN — spectating', life: 3.0, color: '#ff8080', size: 16, vy: -15 });
+      // If P1 also dead, game over
+      if (player.dead || player.hp <= 0) gameOver();
+    }
   }
 }
+function damagePlayer(amount, attacker) { damagePlayerTarget(player, amount, attacker); }
 
 function killEnemy(e) {
   totalKills++;
@@ -2530,47 +2682,41 @@ function placeStructure(type, x, y) {
   floatTexts.push({ x, y: y - 25, text: '🏗️ ' + def.name, life: 2, color: def.color, size: 16, vy: -25 });
 }
 
-function useConsumable(slotIdx) {
-  if (!player || !player.consumables[slotIdx]) return;
-  const c = player.consumables[slotIdx];
-  const def = CONSUMABLES[c.type];
+function useConsumableFor(p, slotIdx) {
+  if (!p || !p.consumables[slotIdx]) return;
+  const c = p.consumables[slotIdx];
   if (c.type === 'grenade') {
-    // Throw grenade toward nearest enemy, explodes on impact
-    const target = findNearestEnemy(player.x, player.y, 600);
-    const tx = target ? target.x : player.x + player.lastDirX * 200;
-    const ty = target ? target.y : player.y + player.lastDirY * 200;
-    // Launch a projectile
-    const ang = Math.atan2(ty - player.y, tx - player.x);
-    const speed = 500;
+    const target = findNearestEnemy(p.x, p.y, 600);
+    const tx = target ? target.x : p.x + p.lastDirX * 200;
+    const ty = target ? target.y : p.y + p.lastDirY * 200;
+    const ang = Math.atan2(ty - p.y, tx - p.x);
     bullets.push({
-      x: player.x, y: player.y,
-      vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed,
+      x: p.x, y: p.y,
+      vx: Math.cos(ang) * 500, vy: Math.sin(ang) * 500,
       dmg: 0, size: 6, color: '#ff6040',
       life: 1.2, pierce: 0, hit: null,
-      grenade: true, // flag for special handling
-      grenadeTargetDist: dist(player.x, player.y, tx, ty),
+      grenade: true,
+      grenadeTargetDist: dist(p.x, p.y, tx, ty),
       grenadeTravelled: 0,
     });
   } else if (c.type === 'potion') {
-    const healed = Math.min(40, player.maxHp - player.hp);
-    player.hp += healed;
-    floatTexts.push({ x: player.x, y: player.y - 30, text: '+' + healed + ' HP', life: 1.5, color: '#60e080', size: 18, vy: -40 });
-    spawnParticles(player.x, player.y, '#60e080', 16);
+    const healed = Math.min(40, p.maxHp - p.hp);
+    p.hp += healed;
+    floatTexts.push({ x: p.x, y: p.y - 30, text: '+' + healed + ' HP', life: 1.5, color: '#60e080', size: 18, vy: -40 });
+    spawnParticles(p.x, p.y, '#60e080', 16);
   } else if (c.type === 'freeze') {
     freezeTimer = 3;
-    spawnParticles(player.x, player.y, '#80d0ff', 30);
-    floatTexts.push({ x: player.x, y: player.y - 30, text: '❄️ FREEZE', life: 1.8, color: '#80d0ff', size: 20, vy: -30 });
+    spawnParticles(p.x, p.y, '#80d0ff', 30);
+    floatTexts.push({ x: p.x, y: p.y - 30, text: '❄️ FREEZE', life: 1.8, color: '#80d0ff', size: 20, vy: -30 });
     screenShake = Math.min(8, screenShake + 3);
   } else if (c.type === 'magnet') {
-    // Pull all pickups on the map toward the player
-    for (const p of pickups) {
-      p.magnetized = true; // flagged for faster pull in the pickup update loop
-    }
-    floatTexts.push({ x: player.x, y: player.y - 30, text: '🧲 MAGNET', life: 1.5, color: '#f0d040', size: 18, vy: -30 });
-    spawnParticles(player.x, player.y, '#f0d040', 20);
+    for (const pk of pickups) pk.magnetized = true;
+    floatTexts.push({ x: p.x, y: p.y - 30, text: '🧲 MAGNET', life: 1.5, color: '#f0d040', size: 18, vy: -30 });
+    spawnParticles(p.x, p.y, '#f0d040', 20);
   }
-  player.consumables[slotIdx] = null;
+  p.consumables[slotIdx] = null;
 }
+function useConsumable(slotIdx) { useConsumableFor(player, slotIdx); }
 
 function openChest(c) {
   c.opened = true;
@@ -2598,15 +2744,17 @@ function openChest(c) {
   }
 }
 
-function gainXp(amount) {
-  player.xp += amount;
-  while (player.xp >= player.xpToNext) {
-    player.xp -= player.xpToNext;
-    player.level++;
-    player.xpToNext = Math.floor(10 + player.level * 6 + player.level * player.level * 1.4);
-    triggerLevelUp();
+function gainXpFor(p, amount) {
+  p.xp += amount;
+  while (p.xp >= p.xpToNext) {
+    p.xp -= p.xpToNext;
+    p.level++;
+    p.xpToNext = Math.floor(10 + p.level * 6 + p.level * p.level * 1.4);
+    if (p === player) triggerLevelUp();
+    else triggerLevelUpFor(p); // P2 gets their own level-up picks
   }
 }
+function gainXp(amount) { gainXpFor(player, amount); }
 
 function spawnParticles(x, y, color, n) {
   for (let i = 0; i < n; i++) {
@@ -2720,8 +2868,11 @@ function renderRoomPicker(candidates) {
 }
 
 // ---------- Level up UI ----------
-function triggerLevelUp() {
+function triggerLevelUp() { triggerLevelUpFor(player); }
+
+function triggerLevelUpFor(p) {
   state = 'levelup';
+  const isP2 = p === player2;
   const cards = [];
   const pool = [...UPGRADES];
   const weight = u => u.rarity === 'epic' ? 1 : (u.rarity === 'rare' ? 3 : 6);
@@ -2735,6 +2886,9 @@ function triggerLevelUp() {
     }
     cards.push(pool.splice(idx, 1)[0]);
   }
+  // Update header to show which player is leveling up
+  const h2 = document.querySelector('#levelup h2');
+  if (h2) h2.textContent = isP2 ? '🔵 Player 2 — Choose an upgrade' : 'Choose an upgrade';
   const container = document.getElementById('levelup-cards');
   container.innerHTML = '';
   cards.forEach(u => {
@@ -2742,7 +2896,7 @@ function triggerLevelUp() {
     el.className = 'card';
     el.innerHTML = `<div class="title rarity-${u.rarity}">${u.name}</div><div class="desc">${u.desc}</div>`;
     el.onclick = () => {
-      u.apply(player);
+      u.apply(p);
       document.getElementById('levelup').classList.remove('active');
       state = 'playing';
     };
@@ -2754,8 +2908,21 @@ function triggerLevelUp() {
 // ---------- Shop ----------
 let shopOffers = [];
 let rerollCost = 3;
-let shopPurchases = 0; // counts purchases this shop visit
+let shopPurchases = 0;
 let shopPurchaseCap = 3;
+let shopActivePlayer = 1; // which player is shopping (1 or 2)
+
+function setShopPlayer(n) {
+  shopActivePlayer = n;
+  shopPurchases = 0;
+  shopPurchaseCap = currentPurchaseCap();
+  const p1btn = document.getElementById('shop-p1-btn');
+  const p2btn = document.getElementById('shop-p2-btn');
+  if (p1btn) p1btn.style.background = n === 1 ? '#8b5a3c' : '';
+  if (p2btn) p2btn.style.background = n === 2 ? '#3060a0' : '';
+  renderShop();
+}
+function shopPlayer() { return shopActivePlayer === 2 && player2 ? player2 : player; }
 
 function scaledCost(baseCost) {
   const raw = baseCost * (1 + wave * 0.18);
@@ -2772,6 +2939,7 @@ function currentPurchaseCap() {
 
 function openShop() {
   state = 'shop';
+  shopActivePlayer = 1; // always start on P1
   const rerollBase = 3 + Math.floor(wave * 0.5);
   rerollCost = Math.max(1, Math.ceil(rerollBase * (1 - (player.rerollDiscount || 0))));
   shopPurchases = 0;
@@ -2791,7 +2959,7 @@ function rollShop() {
     // Weapons are boosted to 2x weight so they show up more often.
     // This makes early game less about waiting for a specific weapon to roll.
     if (it.type === 'weapon') w *= 2;
-    if (it.type === 'weapon' && player.weapons.length >= 5) w = 0;
+    if (it.type === 'weapon' && shopPlayer().weapons.length >= 5) w = 0;
     return w;
   };
   for (let i = 0; i < pickCount && pool.length; i++) {
@@ -2809,6 +2977,17 @@ function rollShop() {
 
 function renderShop() {
   document.getElementById('shop-coins').textContent = player.coins;
+  const p2coinsWrap = document.getElementById('shop-p2-coins-wrap');
+  const p2coinsEl = document.getElementById('shop-p2-coins');
+  const shopToggle = document.getElementById('shop-player-toggle');
+  if (player2) {
+    if (p2coinsWrap) p2coinsWrap.style.display = 'inline';
+    if (p2coinsEl) p2coinsEl.textContent = player2.coins;
+    if (shopToggle) shopToggle.style.display = 'flex';
+  } else {
+    if (p2coinsWrap) p2coinsWrap.style.display = 'none';
+    if (shopToggle) shopToggle.style.display = 'none';
+  }
   document.getElementById('reroll-cost').textContent = rerollCost;
   // Show purchase counter in shop header
   const purchaseIndicator = document.getElementById('shop-purchases');
@@ -2821,24 +3000,24 @@ function renderShop() {
   const rack = document.getElementById('gun-rack');
   if (rack) {
     rack.innerHTML = '';
+    const sp = shopPlayer();
     for (let i = 0; i < 5; i++) {
       const slot = document.createElement('div');
-      const wep = player.weapons[i];
+      const wep = sp.weapons[i];
       if (wep) {
         const def = WEAPONS[wep.type];
-        // Find the base shop cost for this weapon type
         const shopDef = SHOP_ITEMS.find(it => it.type === 'weapon' && it.weapon === wep.type);
         const baseCost = shopDef ? shopDef.cost : 10;
         const sellPrice = Math.max(1, Math.floor(baseCost / 2));
-        const canSell = player.weapons.length > 1; // must have at least one weapon
+        const canSell = sp.weapons.length > 1;
         slot.style.cssText = `width:90px; height:52px; border:2px solid #8b5a3c; background:#2a1a22; border-radius:4px; display:flex; flex-direction:column; align-items:center; justify-content:center; ${canSell ? 'cursor:pointer;' : 'cursor:not-allowed; opacity:0.5;'} transition:background 0.1s; padding:2px;`;
         slot.innerHTML = `<div style="font-weight:bold; color:${def.color}; font-size:12px;">${def.name}</div><div style="font-size:10px; color:#f0d060; margin-top:2px;">Sell: 💰${sellPrice}</div>`;
         if (canSell) {
           slot.onmouseenter = () => { slot.style.background = '#4a2a32'; };
           slot.onmouseleave = () => { slot.style.background = '#2a1a22'; };
           slot.onclick = () => {
-            player.coins += sellPrice;
-            player.weapons.splice(i, 1);
+            sp.coins += sellPrice;
+            sp.weapons.splice(i, 1);
             renderShop();
           };
         }
@@ -2857,12 +3036,12 @@ function renderShop() {
     const cost = scaledCost(it.cost);
     const el = document.createElement('div');
     // Weapons and allies are always buyable if affordable — replacement picker handles cap.
-    const affordable = player.coins >= cost && !capReached;
+    const affordable = shopPlayer().coins >= cost && !capReached;
     el.className = 'card' + (affordable ? '' : ' disabled');
     let capNote = capReached ? '<div style="color:#ff6040; font-size:10px; margin-top:4px">CAP REACHED</div>' : '';
     // Note if buying would force a replacement
     let replaceNote = '';
-    if (affordable && (it.type === 'weapon' || it.type === 'ally') && player.weapons.length >= 5) {
+    if (affordable && (it.type === 'weapon' || it.type === 'ally') && shopPlayer().weapons.length >= 5) {
       replaceNote = '<div style="color:#ffa060; font-size:10px; margin-top:4px">Rack full — pick a weapon to drop</div>';
     }
     el.innerHTML = `
@@ -2887,25 +3066,26 @@ function renderShop() {
       } else {
         el.onclick = () => {
           // If buying would exceed weapon cap, show picker BEFORE deducting coins
-          const needsPicker = (it.type === 'weapon' || it.type === 'ally') && player.weapons.length >= 5;
+          const needsPicker = (it.type === 'weapon' || it.type === 'ally') && shopPlayer().weapons.length >= 5;
           if (needsPicker) {
             openWeaponReplace(it, cost, idx);
             return;
           }
-          player.coins -= cost;
+          shopPlayer().coins -= cost;
           shopPurchases++;
-          if (it.type === 'weapon') player.weapons.push({ type: it.weapon, cd: 0 });
+          const sp = shopPlayer();
+          if (it.type === 'weapon') sp.weapons.push({ type: it.weapon, cd: 0 });
           else if (it.type === 'consumable') {
-            const slotIdx = player.consumables.findIndex(s => s === null);
-            player.consumables[slotIdx] = { type: it.consumable };
+            const slotIdx = sp.consumables.findIndex(s => s === null);
+            if (slotIdx >= 0) sp.consumables[slotIdx] = { type: it.consumable };
           }
           else if (it.type === 'ally') {
-            spawnAlly(it.ally, player.x + rand(-30, 30), player.y + rand(-30, 30));
+            spawnAlly(it.ally, sp.x + rand(-30, 30), sp.y + rand(-30, 30));
           }
           else if (it.type === 'structure') {
-            player.carriedStructures.push({ type: it.structure });
+            sp.carriedStructures.push({ type: it.structure });
           }
-          else it.apply(player);
+          else it.apply(sp);
           shopOffers.splice(idx, 1);
           renderShop();
         };
@@ -2916,9 +3096,9 @@ function renderShop() {
 }
 
 function rerollShop() {
-  if (player.coins < rerollCost) return;
-  player.coins -= rerollCost;
-  rerollCost = rerollCost * 2; // exponential doubling per reroll
+  if (shopPlayer().coins < rerollCost) return;
+  shopPlayer().coins -= rerollCost;
+  rerollCost = rerollCost * 2;
   rollShop();
   renderShop();
 }
@@ -2928,14 +3108,14 @@ let pendingReplace = null; // { item, cost, shopIdx }
 
 function openWeaponReplace(item, cost, shopIdx) {
   pendingReplace = { item, cost, shopIdx };
+  const sp = shopPlayer();
   const label = item.type === 'ally'
     ? `Pick a weapon to drop to make room for ${ALLIES[item.ally].name}`
     : `Pick a weapon to replace with ${WEAPONS[item.weapon].name}`;
   document.getElementById('weapon-replace-subtitle').textContent = label;
-
   const container = document.getElementById('weapon-replace-cards');
   container.innerHTML = '';
-  player.weapons.forEach((w, wi) => {
+  sp.weapons.forEach((w, wi) => {
     const def = WEAPONS[w.type];
     const el = document.createElement('div');
     el.className = 'card';
@@ -2953,16 +3133,13 @@ function openWeaponReplace(item, cost, shopIdx) {
 function completeWeaponReplace(weaponIdx) {
   if (!pendingReplace) return;
   const { item, cost, shopIdx } = pendingReplace;
-  // Drop the picked weapon
-  player.weapons.splice(weaponIdx, 1);
-  // Apply the purchase
-  player.coins -= cost;
+  const sp = shopPlayer();
+  sp.weapons.splice(weaponIdx, 1);
+  sp.coins -= cost;
   shopPurchases++;
-  if (item.type === 'weapon') player.weapons.push({ type: item.weapon, cd: 0 });
-  else if (item.type === 'ally') spawnAlly(item.ally, player.x + rand(-30, 30), player.y + rand(-30, 30));
-  // Remove from shop offers
+  if (item.type === 'weapon') sp.weapons.push({ type: item.weapon, cd: 0 });
+  else if (item.type === 'ally') spawnAlly(item.ally, sp.x + rand(-30, 30), sp.y + rand(-30, 30));
   shopOffers.splice(shopIdx, 1);
-  // Close picker and refresh
   document.getElementById('weapon-replace').classList.remove('active');
   pendingReplace = null;
   renderShop();
@@ -3061,6 +3238,22 @@ function updateHUD() {
     }
   }
 
+  // P2 HUD
+  const p2hud = document.getElementById('p2-hud');
+  if (p2hud) {
+    if (player2) {
+      p2hud.style.display = 'block';
+      const p2hp = document.getElementById('p2-hp-text');
+      const p2bar = document.getElementById('p2-hp-bar');
+      const p2wep = document.getElementById('p2-weapons-list');
+      if (p2hp) p2hp.textContent = player2.dead ? 'DOWN' : `${Math.ceil(player2.hp)}/${player2.maxHp}`;
+      if (p2bar) p2bar.style.width = (player2.dead ? 0 : 100 * player2.hp / player2.maxHp) + '%';
+      if (p2wep) p2wep.textContent = player2.weapons.map(w => WEAPONS[w.type].name).join(', ');
+    } else {
+      p2hud.style.display = 'none';
+    }
+  }
+
   // Mobile HUD + action buttons
   if (IS_MOBILE) {
     const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
@@ -3155,6 +3348,7 @@ function render() {
 
   // Player
   drawPlayer();
+  if (player2) drawPlayer2();
 
   // Bullets
   for (const b of bullets) {
@@ -3518,6 +3712,56 @@ function drawPlayer() {
       ctx.restore();
     }
   }
+  // P1 label in multiplayer
+  if (player2) {
+    ctx.fillStyle = '#f4c47a'; ctx.font = 'bold 10px Courier New';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('P1', 0, -p.r - 10);
+  }
+  ctx.restore();
+}
+
+function drawPlayer2() {
+  const p = player2;
+  if (!p) return;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  // Ghost mode if dead
+  if (p.dead) {
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = '#8080ff';
+    ctx.beginPath(); ctx.arc(0, 0, p.r, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Courier New';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('P2 💀', 0, 0);
+    ctx.restore(); return;
+  }
+  if (p.iframe > 0 && Math.floor(p.iframe * 20) % 2 === 0) ctx.globalAlpha = 0.4;
+  // Blue-tinted potato body
+  ctx.fillStyle = p.hitFlash > 0 ? '#b0c0ff' : '#8090d0';
+  ctx.strokeStyle = '#303070'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.ellipse(0, 2, p.r * 1.05, p.r * 1.15, 0, 0, TAU);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#303070';
+  ctx.beginPath(); ctx.arc(-10, -8, 2, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(8, 10, 1.5, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(-6, 12, 1.5, 0, TAU); ctx.fill();
+  drawFace(0, -2, p.faceState, 1.0);
+  if (p.muzzleFlash > 0) {
+    const target = findNearestEnemy(p.x, p.y, 600);
+    if (target) {
+      const ang = Math.atan2(target.y - p.y, target.x - p.x);
+      ctx.save(); ctx.rotate(ang);
+      ctx.fillStyle = '#80c0ff';
+      ctx.shadowColor = '#4080ff'; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.arc(p.r + 2, 0, 6 * (p.muzzleFlash / 0.08), 0, TAU); ctx.fill();
+      ctx.restore();
+    }
+  }
+  ctx.fillStyle = '#80c0ff'; ctx.font = 'bold 10px Courier New';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('P2', 0, -p.r - 10);
   ctx.restore();
 }
 
@@ -4189,6 +4433,7 @@ window.openCodex = openCodex;
 window.closeCodex = closeCodex;
 window.showCodexTab = showCodexTab;
 window.cancelWeaponReplace = cancelWeaponReplace;
+window.setShopPlayer = setShopPlayer;
 window.requestFullscreen = requestFullscreen;
 window.enterFullscreenAndContinue = enterFullscreenAndContinue;
 window.skipFullscreen = skipFullscreen;

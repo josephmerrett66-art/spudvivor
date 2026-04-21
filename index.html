@@ -1861,10 +1861,10 @@ function update(dt) {
 
     } else if (e.behavior === 'stalker') {
       const d = dist(e.x, e.y, player.x, player.y);
-      // Timed cycle: 3s invisible, 5s visible, repeat
-      e.stalkTimer = (e.stalkTimer || 0) + dt;
-      const cyclePos = e.stalkTimer % 8.0; // 3 + 5 = 8s cycle
-      e.isVisible = cyclePos >= 3.0;
+      // Cycle: 5s visible then 3s invisible. Start visible so they don't spawn hidden.
+      e.stalkTimer = (e.stalkTimer || 3.0) + dt; // start at 3.0 so cyclePos begins in visible phase
+      const cyclePos = e.stalkTimer % 8.0;
+      e.isVisible = cyclePos < 5.0; // visible for first 5s, invisible for last 3s
       if (d > 0.1) { tx = (player.x - e.x) / d; ty = (player.y - e.y) / d; }
 
     } else if (e.behavior === 'bomber') {
@@ -2148,7 +2148,7 @@ function update(dt) {
 function findNearestEnemy(x, y, maxRange) {
   let best = null, bestD = maxRange;
   for (const e of enemies) {
-    // Invisible stalkers can't be auto-targeted
+    // Invisible stalkers can't be auto-targeted — but visible ones can
     if (e.type === 'stalker' && !e.isVisible) continue;
     const d = dist(x, y, e.x, e.y);
     if (d < bestD) { bestD = d; best = e; }
@@ -3438,6 +3438,24 @@ function drawMinimap() {
   ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.arc(cx, cy, 4, 0, TAU); ctx.fill(); ctx.stroke();
 
+  // Enemy dots — show all enemies in unlocked rooms as red dots
+  // Invisible stalkers show as faint purple so you can hunt them
+  for (const e of enemies) {
+    const room = worldRooms[e.room.y]?.[e.room.x];
+    if (!room || !room.unlocked) continue;
+    const ex = cx + (e.room.x - currentRoom.x) * cellSize + ((e.x % ROOM_W) - ROOM_W/2) / ROOM_W * cellSize;
+    const ey = cy + (e.room.y - currentRoom.y) * cellSize + ((e.y % ROOM_H) - ROOM_H/2) / ROOM_H * cellSize;
+    if (e.type === 'stalker' && !e.isVisible) {
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = '#cc80ff';
+    } else {
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = e.type === 'boss' ? '#ff2040' : '#ff6060';
+    }
+    ctx.beginPath(); ctx.arc(ex, ey, e.type === 'boss' ? 3.5 : 2, 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
   ctx.restore(); // end clip
 
   // Compass label (outside the clip so it's always sharp)
@@ -3796,7 +3814,7 @@ function drawEnemy(e) {
   } else if (e.type === 'stalker') {
     // 3s invisible, 5s visible. Flicker in final 0.5s before vanishing as a warning.
     const cyclePos = (e.stalkTimer || 0) % 8.0;
-    const aboutToVanish = e.isVisible && cyclePos >= 7.5; // last 0.5s of visible phase
+    const aboutToVanish = e.isVisible && cyclePos >= 4.5; // flicker in last 0.5s of visible phase
     const flicker = aboutToVanish && Math.floor(Date.now() / 80) % 2 === 0;
     const visAlpha = e.isVisible ? (flicker ? 0.2 : 1) : 0.08;
     ctx.globalAlpha = visAlpha;

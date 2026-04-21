@@ -284,6 +284,7 @@
       <div style="font-size:22px; margin-top:2px">👹 <b id="enemy-count">0</b></div>
       <div style="margin-top:4px; font-size:11px">Room <b id="room-text">3,3</b></div>
       <div style="margin-top:2px; font-size:10px; opacity:0.6; display:none" id="timer-text">0</div>
+      <div style="margin-top:6px"><button class="btn" onclick="openCodex()" style="font-size:10px; padding:3px 8px; opacity:0.7">📖</button></div>
     </div>
     <div class="hud-box" style="text-align:right">
       <div>💰 <b id="coins-text">0</b></div>
@@ -331,6 +332,9 @@
       <p style="text-align:center">Survive endless waves across 25 rooms. Move with <b>WASD</b>. Dash with <b>SPACE</b>. Use consumables with <b>1/2/3</b>. Place structures with <b>P</b>. Toggle music with <b>M</b>. You auto-fire at the nearest enemy. Clear every enemy to unlock a new room.</p>
       <h2 style="margin-top:18px; color:#f4c47a">CHOOSE YOUR RUN</h2>
       <div id="difficulty-picker" style="display:flex; flex-direction:column; gap:8px; margin-top:12px"></div>
+      <div style="text-align:center; margin-top:10px">
+        <button class="btn" onclick="openCodex()" style="opacity:0.8; font-size:13px">📖 Codex — Weapons, Enemies & Items</button>
+      </div>
       <div id="credits">Hand-drawn canvas graphics. Single HTML file. No dependencies.</div>
     </div>
   </div>
@@ -413,6 +417,22 @@
       <div class="stats-row" id="victory-stats"></div>
       <div style="text-align:center; margin-top:16px">
         <button class="btn primary" onclick="restartGame()">PLAY AGAIN</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="info-overlay">
+    <div class="panel" style="max-width:680px; width:100%">
+      <h1 style="color:#f4c47a">📖 CODEX</h1>
+      <!-- Tab buttons -->
+      <div style="display:flex; gap:8px; margin:12px 0; justify-content:center; flex-wrap:wrap">
+        <button class="btn" id="tab-weapons" onclick="showCodexTab('weapons')" style="background:#8b5a3c">🔫 Weapons</button>
+        <button class="btn" id="tab-enemies" onclick="showCodexTab('enemies')">👹 Enemies</button>
+        <button class="btn" id="tab-items"   onclick="showCodexTab('items')">🎒 Items</button>
+      </div>
+      <div id="codex-content" style="max-height:60vh; overflow-y:auto; -webkit-overflow-scrolling:touch"></div>
+      <div style="text-align:center; margin-top:14px">
+        <button class="btn primary" onclick="closeCodex()">Close</button>
       </div>
     </div>
   </div>
@@ -1843,7 +1863,7 @@ function update(dt) {
     } else if (e.behavior === 'shrieker') {
       // Runs away from player, screams periodically
       const d = dist(e.x, e.y, player.x, player.y);
-      if (d > 0.1) { tx = -(player.x - e.x) / d; ty = -(player.y - e.y) / d; } // flee
+      if (d > 0.1) { tx = (player.x - e.x) / d; ty = (player.y - e.y) / d; } // chase
       e.screamTimer = (e.screamTimer || 0) + dt;
       if (e.screamTimer >= ENEMY_TYPES.shrieker.screamCd) {
         e.screamTimer = 0;
@@ -4054,6 +4074,118 @@ window.restartGame = restartGame;
 window.startNextWave = startNextWave;
 window.rerollShop = rerollShop;
 window.closeStatsCard = closeStatsCard;
+
+// ---------- Codex ----------
+let codexTab = 'weapons';
+let codexWasPlaying = false;
+
+function openCodex() {
+  codexWasPlaying = state === 'playing';
+  if (codexWasPlaying) state = 'paused';
+  document.getElementById('info-overlay').classList.add('active');
+  showCodexTab(codexTab);
+}
+
+function closeCodex() {
+  document.getElementById('info-overlay').classList.remove('active');
+  if (codexWasPlaying) state = 'playing';
+}
+
+function showCodexTab(tab) {
+  codexTab = tab;
+  // Highlight active tab
+  ['weapons','enemies','items'].forEach(t => {
+    const btn = document.getElementById('tab-' + t);
+    if (btn) btn.style.background = t === tab ? '#8b5a3c' : '';
+  });
+  const el = document.getElementById('codex-content');
+  if (!el) return;
+
+  if (tab === 'weapons') {
+    const rows = Object.entries(WEAPONS).map(([key, w]) => {
+      const special = w.special ? `<span style="color:#a060ff; font-size:10px"> ✦ ${w.special}</span>` : '';
+      const dps = w.speed > 0 ? (w.damage * w.pellets / w.cooldown).toFixed(1) : '—';
+      return `
+        <div style="border:1px solid #4a3028; border-radius:4px; padding:10px; margin-bottom:8px; background:#1a0a10">
+          <div style="display:flex; justify-content:space-between; align-items:center">
+            <span style="font-weight:bold; color:${w.color}; font-size:15px">${w.name}</span>
+            ${special}
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; margin-top:8px; font-size:11px; color:#c0a080">
+            <span>💥 DMG: <b style="color:#fff">${w.damage}</b></span>
+            <span>⏱ CD: <b style="color:#fff">${w.cooldown}s</b></span>
+            <span>📊 DPS: <b style="color:#f4c47a">${dps}</b></span>
+            <span>🎯 Range: <b style="color:#fff">${w.range}</b></span>
+            ${w.pellets > 1 ? `<span>🔫 Pellets: <b style="color:#fff">${w.pellets}</b></span>` : '<span></span>'}
+            ${w.pierce > 0 ? `<span>➡ Pierce: <b style="color:#fff">${w.pierce === 99 ? '∞' : w.pierce}</b></span>` : '<span></span>'}
+          </div>
+          ${w.special === 'laser' ? '<div style="font-size:10px; color:#ff8080; margin-top:4px">⚠ Overheats after ~8 shots. Cools down when not firing.</div>' : ''}
+          ${w.special === 'boomerang' ? '<div style="font-size:10px; color:#d4a030; margin-top:4px">↩ Returns to you and hits enemies on the way back.</div>' : ''}
+          ${w.special === 'tesla' ? '<div style="font-size:10px; color:#a060ff; margin-top:4px">⚡ Chains to 4 nearby enemies. Each hop does 60% of previous.</div>' : ''}
+          ${w.special === 'melee_arc' ? '<div style="font-size:10px; color:#c0c0e0; margin-top:4px">⚔ Wide arc swing — hits everything in a 126° cone in front of you.</div>' : ''}
+          ${w.special === 'melee_thrust' ? '<div style="font-size:10px; color:#a08050; margin-top:4px">🗡 Narrow thrust — pierces all enemies in a line with huge knockback.</div>' : ''}
+          ${w.special === 'melee_spin' ? '<div style="font-size:10px; color:#e0a030; margin-top:4px">🌀 Spins around you constantly. No aiming — just run into enemies.</div>' : ''}
+          ${w.special === 'railgun' ? '<div style="font-size:10px; color:#40ffff; margin-top:4px">💥 Pierces every enemy in a line. Screen shake on fire.</div>' : ''}
+          ${w.special === 'flame' ? '<div style="font-size:10px; color:#ff6010; margin-top:4px">🔥 Short range cone. Ignites enemies for 3 dmg/0.3s over 2 seconds.</div>' : ''}
+        </div>`;
+    }).join('');
+    el.innerHTML = rows;
+
+  } else if (tab === 'enemies') {
+    const enemyDescs = {
+      walker:   'Basic chaser. Slow but shows up in huge numbers.',
+      runner:   'Fast and fragile. Comes in packs.',
+      brute:    'Tanky slow bruiser. Takes a lot of damage.',
+      shooter:  'Keeps its distance and fires ranged projectiles.',
+      dasher:   'Stalks slowly, then charges up (glows red) and rockets at you. Dodge during the 0.4s charge window.',
+      spitter:  'Lobs acid blobs that leave puddles on the ground. Puddles damage you if you walk through them.',
+      shrieker: 'Chases you and screams every 3s, buffing all nearby enemies with +40% speed for 4 seconds. Kill first.',
+      stalker:  '5s visible / 3s invisible cycle. Can\'t be auto-targeted when invisible. Check minimap for purple dot.',
+      bomber:   'Slow walker. Triggers a 3-second fuse when close. Watch the countdown and run.',
+      boss:     'Multi-phase. Shoots bullet rings — more bullets at lower HP. Becomes a checkpoint in endless mode.',
+    };
+    const rows = Object.entries(ENEMY_TYPES).map(([key, e]) => {
+      return `
+        <div style="border:1px solid #4a3028; border-radius:4px; padding:10px; margin-bottom:8px; background:#1a0a10">
+          <div style="display:flex; justify-content:space-between; align-items:center">
+            <span style="font-weight:bold; color:${e.color}; font-size:15px">${key.charAt(0).toUpperCase() + key.slice(1)}</span>
+            <span style="font-size:10px; opacity:0.6">appears w${key==='walker'?1:key==='runner'?2:key==='bomber'?3:key==='dasher'?4:key==='shrieker'?5:key==='spitter'?6:key==='stalker'?8:key==='brute'?4:key==='shooter'?6:'20'}+</span>
+          </div>
+          <div style="font-size:11px; color:#a09080; margin-top:5px; margin-bottom:8px">${enemyDescs[key] || ''}</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; font-size:11px; color:#c0a080">
+            <span>❤ HP: <b style="color:#fff">${e.baseHp}</b></span>
+            <span>💥 DMG: <b style="color:#fff">${e.dmg}</b></span>
+            <span>💨 SPD: <b style="color:#fff">${e.speed}</b></span>
+          </div>
+        </div>`;
+    }).join('');
+    el.innerHTML = '<div style="font-size:10px; color:#a09080; margin-bottom:8px">⚠ Stats scale up each wave. HP and DMG listed are base values.</div>' + rows;
+
+  } else if (tab === 'items') {
+    // Show level-up upgrades and shop stat items
+    const allItems = [
+      ...UPGRADES.map(u => ({ name: u.name, desc: u.desc, rarity: u.rarity, source: 'Level-up' })),
+      ...SHOP_ITEMS.filter(i => i.type === 'stat').map(i => ({ name: i.name, desc: i.desc, rarity: i.rarity, cost: i.cost, source: 'Shop' })),
+    ];
+    const rarityColor = { common: '#c0c0c0', rare: '#60a0ff', epic: '#c060ff' };
+    const rows = allItems.map(item => `
+      <div style="border:1px solid #3a2828; border-radius:4px; padding:8px 10px; margin-bottom:6px; background:#140a0a; display:flex; justify-content:space-between; align-items:center; gap:8px">
+        <div>
+          <span style="font-weight:bold; color:${rarityColor[item.rarity] || '#fff'}; font-size:13px">${item.name}</span>
+          <div style="font-size:11px; color:#a09080; margin-top:2px">${item.desc}</div>
+        </div>
+        <div style="text-align:right; flex-shrink:0; font-size:10px; opacity:0.7">
+          <div style="color:${rarityColor[item.rarity]}">${item.rarity}</div>
+          <div>${item.source}${item.cost ? ' · 💰' + item.cost : ''}</div>
+        </div>
+      </div>`).join('');
+    el.innerHTML = rows;
+  }
+}
+
+window.openCodex = openCodex;
+window.closeCodex = closeCodex;
+window.showCodexTab = showCodexTab;
 window.cancelWeaponReplace = cancelWeaponReplace;
 window.requestFullscreen = requestFullscreen;
 window.enterFullscreenAndContinue = enterFullscreenAndContinue;

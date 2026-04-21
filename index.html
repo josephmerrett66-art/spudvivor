@@ -6,6 +6,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Spudvivor">
 <title>Spudvivor</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -3486,6 +3487,22 @@ function toggleMusic() {
 window.addEventListener('keydown', e => {
   if (e.key.toLowerCase() === 'm' && !keys['m']) toggleMusic();
 });
+
+// iOS standalone (home screen) mode: audio is locked until a user gesture fires
+// on the document itself. We listen for the first touchstart/click anywhere and
+// attempt to resume/play music. Once it starts we remove the listener.
+function unlockAudioOnGesture() {
+  if (musicStarted) return;
+  if (MUSIC_TRACKS.length === 0) return;
+  playMusic();
+  // Also create and immediately suspend an AudioContext to unlock the audio stack
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    ctx.resume().then(() => ctx.close());
+  } catch(e) {}
+}
+document.addEventListener('touchstart', unlockAudioOnGesture, { once: false, passive: true });
+document.addEventListener('click', unlockAudioOnGesture, { once: false, passive: true });
 
 // ---------- Go! ----------
 window.startGame = startGame;
